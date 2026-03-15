@@ -21,7 +21,7 @@ It features a lightweight, persistent taskbar overlay showing live upload and do
 
 ## 📸 NetGlance Demo
 <p align="center">
-  <video width="600" src="https://github.com/sowmiksudo/NetGlance/raw/refs/heads/main/assets/demo.mp4"controls> </video>
+  <img width="600" src="assets/6068.gif"controls />
 </p>
 
 ## 🚀 Installation & Usage
