@@ -1,10 +1,10 @@
-; NetSpeedTray Installer Script
+; NetGlance Installer Script
 
-#define MyAppName "NetSpeedTray"
-#define MyAppPublisher "Erez C137"
-#define MyAppURL "https://github.com/erez-c137/NetSpeedTray"
-#define MyAppExeName "NetSpeedTray.exe"
-#define MyAppMutex "Global\NetSpeedTray_Single_Instance_Mutex"
+#define MyAppName "NetGlance"
+#define MyAppPublisher "Sowmik"
+#define MyAppURL "https://github.com/sowmiksudo/NetGlance"
+#define MyAppExeName "NetGlance.exe"
+#define MyAppMutex "Global\NetGlance_Single_Instance_Mutex"
 #define MyAppId "{{D3A32B89-C533-4F2C-9F87-23B2395B5B89}}"
 
 ; --- DYNAMIC VERSIONING ---
@@ -35,7 +35,7 @@ Compression=lzma
 SolidCompression=yes
 OutputDir=installer
 
-OutputBaseFilename=NetSpeedTray-{#AppVersion}-x64-Setup
+OutputBaseFilename=NetGlance-{#AppVersion}-x64-Setup
 VersionInfoVersion={#AppVersion}
 
 DisableDirPage=auto
@@ -53,7 +53,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "..\dist\NetSpeedTray\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\NetGlance\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -107,7 +107,7 @@ begin
   end;
 end;
 
-function CloseNetSpeedTray(): Boolean;
+function CloseNetGlance(): Boolean;
 var
   ResultCode: Integer;
   Hwnd: HWND;
@@ -119,22 +119,22 @@ begin
   if not IsAppRunning() then
     Exit;
     
-  Log('NetSpeedTray is running (likely two processes), attempting to close gracefully...');
+  Log('NetGlance is running (likely two processes), attempting to close gracefully...');
   
-  Hwnd := FindWindow('', 'NetSpeedTrayHidden');
+  Hwnd := FindWindow('', 'NetGlanceHidden');
   if Hwnd <> 0 then
   begin
-    Log('Found NetSpeedTray window (child process), sending WM_CLOSE...');
+    Log('Found NetGlance window (child process), sending WM_CLOSE...');
     PostMessage(Hwnd, WM_CLOSE, 0, 0);
     
     WaitCount := 0;
-    while (WaitCount < 10) and (FindWindow('', 'NetSpeedTrayHidden') <> 0) do
+    while (WaitCount < 10) and (FindWindow('', 'NetGlanceHidden') <> 0) do
     begin
       Sleep(500);
       WaitCount := WaitCount + 1;
     end;
     
-    if IsAppRunning() or (FindWindow('', 'NetSpeedTrayHidden') <> 0) then
+    if IsAppRunning() or (FindWindow('', 'NetGlanceHidden') <> 0) then
     begin
       Log('Graceful close incomplete (parent/child lingering), using taskkill on EXE/tree...');
       KillAttempts := 0;
@@ -156,22 +156,22 @@ begin
       
       if IsAppRunning() then
       begin
-        Log('NetSpeedTray still running after max taskkill attempts');
+        Log('NetGlance still running after max taskkill attempts');
         Result := False;
       end
       else
       begin
-        Log('All NetSpeedTray processes closed');
+        Log('All NetGlance processes closed');
       end;
     end
     else
     begin
-      Log('NetSpeedTray closed gracefully');
+      Log('NetGlance closed gracefully');
     end;
   end
   else
   begin
-    Log('Could not find NetSpeedTray window, falling back to taskkill on EXE/tree...');
+    Log('Could not find NetGlance window, falling back to taskkill on EXE/tree...');
     KillAttempts := 0;
     while (KillAttempts < 3) and IsAppRunning() do
     begin
@@ -191,12 +191,12 @@ begin
     
     if IsAppRunning() then
     begin
-      Log('NetSpeedTray still running after max taskkill attempts');
+      Log('NetGlance still running after max taskkill attempts');
       Result := False;
     end
     else
     begin
-      Log('All NetSpeedTray processes closed');
+      Log('All NetGlance processes closed');
     end;
   end;
 end;
@@ -207,7 +207,7 @@ begin
   begin
     if MsgBox('{#MyAppName} is currently running and needs to be closed to continue installation.'#13#10#13#10'Click OK to automatically close it, or Cancel to exit the installer.', mbConfirmation, MB_OKCANCEL) = IDOK then
     begin
-      if not CloseNetSpeedTray() then
+      if not CloseNetGlance() then
       begin
         MsgBox('Failed to close {#MyAppName}.'#13#10'Please close it manually and try again.', mbError, MB_OK);
         Result := False;
@@ -229,7 +229,7 @@ begin
   begin
     if MsgBox('{#MyAppName} is currently running and needs to be closed to continue uninstallation.'#13#10#13#10'Click OK to automatically close it, or Cancel to exit the uninstaller.', mbConfirmation, MB_OKCANCEL) = IDOK then
     begin
-      if not CloseNetSpeedTray() then
+      if not CloseNetGlance() then
       begin
         MsgBox('Failed to close {#MyAppName}.'#13#10'Please close it manually and try again.', mbError, MB_OK);
         Result := False;

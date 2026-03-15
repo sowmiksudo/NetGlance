@@ -78,7 +78,7 @@ echo Compiling executable... >> "%LOG_FILE%"
 set "start_time=%TIME%"
 "%ROOT_DIR%\.venv\Scripts\python.exe" -m PyInstaller --noconfirm --distpath "%DIST_DIR%" netspeedtray.spec >> "%LOG_FILE%" 2>&1
 if errorlevel 1 (echo ERROR: PyInstaller compilation failed. Check %LOG_FILE% for details & exit /b 1)
-if not exist "%DIST_DIR%\NetSpeedTray\NetSpeedTray.exe" (echo ERROR: Executable not found after compilation & exit /b 1)
+if not exist "%DIST_DIR%\NetGlance\NetGlance.exe" (echo ERROR: Executable not found after compilation & exit /b 1)
 set "end_time=%TIME%"
 call :log_elapsed "Compiling executable" "%start_time%" "%end_time%"
 
@@ -88,7 +88,7 @@ echo Moving executable to output directory...
 echo Moving executable to output directory... >> "%LOG_FILE%"
 set "start_time=%TIME%"
 mkdir "%OUTPUT_DIR%" 2>nul
-move "%DIST_DIR%\NetSpeedTray\NetSpeedTray.exe" "%OUTPUT_DIR%\NetSpeedTray-v%VERSION%.exe" > NUL
+move "%DIST_DIR%\NetGlance\NetGlance.exe" "%OUTPUT_DIR%\NetGlance-v%VERSION%.exe" > NUL
 if errorlevel 1 (echo ERROR: Failed to move executable & exit /b 1)
 set "end_time=%TIME%"
 call :log_elapsed "Moving executable" "%start_time%" "%end_time%"
@@ -119,7 +119,7 @@ echo.
 echo    BUILD SUCCESSFUL
 echo.
 echo   Executable created:
-echo     %OUTPUT_DIR%\NetSpeedTray-v%VERSION%.exe
+echo     %OUTPUT_DIR%\NetGlance-v%VERSION%.exe
 echo.
 exit /b 0
 

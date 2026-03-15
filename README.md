@@ -1,216 +1,89 @@
-# NetSpeedTray
+# NetGlance
 
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/erez-c137/NetSpeedTray) ![GitHub all releases](https://img.shields.io/github/downloads/erez-c137/NetSpeedTray/total) [![winget install NetSpeedTray](https://img.shields.io/badge/winget-install--NetSpeedTray-blue?logo=windows&logoColor=white)](https://github.com/microsoft/winget-pkgs) ![GitHub license](https://img.shields.io/github/license/erez-c137/NetSpeedTray) ![GitHub stars](https://img.shields.io/github/stars/erez-c137/NetSpeedTray?style=social)
+![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)
+![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)
+![Platform: Windows](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-lightgrey.svg)
 
-![NetSpeedTray Banner](./screenshots/netspeedtray-hero.jpg)
+**NetGlance** brings the clean, detailed, macOS-style network monitoring experience (similar to iStat Menus) directly to the Windows taskbar. 
 
-A lightweight, open-source network monitor for Windows that displays live upload/download speeds directly on the Taskbar. It's the feature Windows forgot.
+It features a lightweight, persistent taskbar overlay showing live upload and download speeds, paired with a modern, frameless pop-up dashboard for detailed analytics, historical graphs, and connection details.
 
----
+## ✨ Features
 
-## Sponsors
+* **Taskbar Overlay:** Real-time upload and download speeds embedded directly over your Windows taskbar.
+* **macOS-Style Dashboard:** A frameless, beautifully styled pop-up triggered via the system tray.
+* **Real-Time Analytics:** * Live historical usage graphing (powered by `pyqtgraph`).
+  * Total data usage tracking per session.
+  * Local IP, physical MAC address, and active interface details.
+  * Live latency (ping) and jitter monitoring.
+* **Highly Optimized:** Uses vectorized data processing to ensure near-zero CPU footprint.
+* **Theme Adaptive:** Blends natively with Windows light and dark modes.
 
-This program uses free code signing provided by [SignPath.io](https://signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
+## 📸 Screenshots
 
+| Taskbar Overlay | Analytics Dashboard |
+| :---: | :---: |
+| *(Add an image of your taskbar widget here: `![Taskbar](assets/taskbar.png)`)* | *(Add an image of your dashboard here: `![Dashboard](assets/dashboard.png)`)* |
 
-## Installation
+## 🚀 Installation & Usage
 
-The easiest way to install and get automatic updates is with a package manager.
+### For Regular Users (Recommended)
+You do not need to install Python to use this app. 
+1. Go to the [Releases](../../releases) page.
+2. Download the latest `NetGlance-Setup.exe` or the portable `.zip`.
+3. Run the executable. The widget will automatically appear in your taskbar!
 
-**Using [Winget](https://docs.microsoft.com/en-us/windows/package-manager/winget/) (Recommended, built into Windows):**
+### For Developers (Build from Source)
+If you want to run the code directly or contribute to the project:
 
-```powershell
-winget install --id erez-c137.NetSpeedTray
+1. Clone the repository:
+   ```bash
+   git clone [https://github.com/sowmiksudo/](https://github.com/sowmiksudo/NetGlance).git
+   cd NetGlance
+
 ```
 
-### Manual Download
-If you prefer, you can download the latest files directly from the [**Releases Page**](https://github.com/erez-c137/NetSpeedTray/releases/latest).
+2. Create and activate a virtual environment:
+```bash
+python -m venv venv
+venv\Scripts\activate
 
--   **`NetSpeedTray-x.x.x-Setup.exe`:** The standard Windows installer. Recommended for most users.
--   **`NetSpeedTray-x.x.x-Portable.zip`:** The portable version. No installation needed—just extract the folder and run `NetSpeedTray.exe`.
+```
 
----
 
-## Key Features
+3. Install the dependencies:
+```bash
+pip install -r requirements.txt
 
--   ⚡ **High-Performance & Efficient:**
-    -   **NumPy Vectorization:** Uses optimized vectorized operations for near-instant graph rendering and zero-latency UI interaction, even with years of data.
-    -   **Dynamic Update Rate:** Automatically reduces polling frequency when the network is idle to conserve CPU and extend battery life.
-    -   **Global Debouncing:** Every adjustment feels snappy thanks to an intelligent input debouncing system that prevents UI thread freezes.
+```
 
--   ✨ **Modern Native Look & Feel:**
-    -   **Fluent Design Sliders:** Designed to blend perfectly with Windows 10/11 UI using modern Fluent-inspired controls.
-    -   **Auto-Theme Detection:** Intelligently switches text and background colors based on your taskbar theme (Light/Dark/Mixed) for perfect visibility.
 
--   🚀 **Intelligent & Adaptive Positioning:**
-    -   **Auto-Shift:** The widget finds empty space next to your system tray and automatically shifts to make room for new icons.
-    -   **Z-Order Excellence:** Stays on top of the taskbar but gracefully hides when you use **Fullscreen applications** or open system menus (Start Menu, Action Center).
-    -   **Tray Offset Control:** Fine-tune exactly where the widget sits relative to the system tray overflow button.
+4. Run the application:
+```bash
+python src/monitor.py
 
--   📈 **Smart Network Monitoring:**
-    -   **Auto-Primary Mode:** The default mode intelligently identifies your main internet connection, ignoring "noise" from internal VPNs or virtual machine adapters.
-    -   **Physical vs. Virtual Filtering:** Choose to monitor all hardware, specific interfaces, or include virtual adapters for power-user transparency.
+```
 
--   🎨 **Total Visual Customization:**
-    -   **Free Move Mode:** Unlock the widget and place it anywhere—on another monitor or a specific spot on your desktop.
-    -   **Optional Mini-Graph:** Display a real-time area chart of recent activity directly on the widget with adjustable opacity and gradient fills.
-    -   **Arrow Styling:** Granular control over arrow symbols—customize their font, size, and weight independently of the speed values.
-    -   **Color Coding:** Set custom speed thresholds and colors to visualize network load at a glance.
 
--   ✍️ **Granular Display Control:**
-    -   **Centralized Unit System:** Choose between Bits (Mbps), Bytes (MB/s), Binary (MiB/s), or Decimal units.
-    -   **Precision Padding:** Control decimal places (0-2) and toggle fixed-width values to prevent layout jitter as numbers change.
-    -   **Layout Options:** Align text (left/center/right) and toggle unit suffixes or activity arrows for a minimalist look.
+## 🛠️ How it Works
 
--   📊 **Advanced History Graph:**
-    -   **Dual-Axis Area Charts:** Split view for Download and Upload ensures both are visible even when speeds are asymmetric.
-    -   **Symlog Scaling:** A dynamic logarithmic scale lets you see fine-grained detail in low-level traffic while still handling massive Gigabit spikes.
-    -   **Time-Dynamic Rendering:** Automatically switches between detailed line plots and "Mean & Range" plots for long-term historical trends.
-    -   **Data Export:** Export your history to `.csv` or save a high-resolution `.png` of your network activity.
+* **Left-Click** the system tray icon to toggle the detailed Analytics Dashboard.
+* **Right-Click** the system tray icon to access Settings or Exit the application.
+* **Click and Drag** the taskbar overlay to reposition it if needed.
 
--   🌍 **Globally Localized:**
-    -   Full support for **9+ languages** (Korean, French, German, Russian, Spanish, Dutch, Polish, Slovenian, and English).
-    -   **100% Key Parity:** Every language is fully translated—no missing keys or English placeholders in any supported locale.
+## 🙏 Acknowledgements & Credits
 
--   🛡️ **Trusted & Secure:**
-    -   **Digitally Signed:** Verified by [SignPath Foundation](https://signpath.org/) to guarantee code integrity and eliminate Windows SmartScreen warnings.
-    -   **100% Open Source:** No ads, no tracking, no telemetry. Just your data, on your machine.
+This project was built to expand upon the fantastic work done by the open-source community.
 
-## Usage & Screenshots
+A massive thank you to **[erez-c137](https://github.com/erez-c137)**. The core network monitoring engine, Z-order taskbar positioning logic, and high-performance data vectorization in this application are heavily based on his brilliant [NetSpeedTray](https://github.com/erez-c137/NetSpeedTray) project. If you are looking for a purely minimalist network monitor, highly recommend checking out his original repo!
 
-#### The Widget
+## 📜 License
 
-The core of NetSpeedTray. It sits on your taskbar, showing your live network speeds.
+This project is licensed under the **GNU General Public License v3.0 (GPLv3)**.
+See the [LICENSE](https://www.google.com/search?q=LICENSE) file for details.
 
--   **Right-click** to access Settings or Exit.
--   **Double-click** to open the full history graph.
--   **Left-click and drag** to adjust its position along the taskbar.
-
-<div align="center">
-  <img src="screenshots/main_new_1.1.2.png" alt="Main Interface" width="600"/><br/>
-</div>
-
-#### Modern Settings
-
-A clean, modern UI to control every aspect of the widget's appearance and behavior.
-
-<div align="center">
-  <img src="screenshots/settings_1.2.5.png" alt="Settings Dialog" width="600"/><br/>
-</div>
-
-#### Detailed History Graph
-
-Double-click the widget to see a detailed, filterable graph of your network history.
-
-<div align="center">
-  <img src="screenshots/main_graph_1.2.5.png" alt="Graph View" width="600"/><br/>
-</div>
+As a copyleft license, this guarantees that the software remains free and open-source forever. Any modifications or derivative works distributed from this codebase must also be open-source and licensed under GPLv3.
 
 ---
 
-## ☕ Support A Tool You Use Every Day
-
-Let’s be real: Windows should have had this feature built-in. NetSpeedTray is my answer: a lightweight, bloat-free solution that feels like it belongs, crafted with hundreds of hours of development and debugging.
-
-This project is a labor of love, and it will **always be free, open-source, and ad-free.**
-
-If you get daily value from this little widget, please consider supporting its future. Your contribution is a powerful way to say "thank you" and directly funds the time spent on new features and long-term maintenance.
-
-<p align="center">
-  <a href="https://github.com/sponsors/erez-c137">
-    <img src="https://img.shields.io/badge/GitHub%20Sponsors-Support%20Me-white?style=for-the-badge&logo=githubsponsors">
-  </a>
-   
-  <a href="https://ko-fi.com/erezc137">
-    <img src="https://img.shields.io/badge/Ko--fi-Buy%20me%20a%20coffee-29abe0?style=for-the-badge&logo=ko-fi&logoColor=white">
-  </a>
-   
-  <a href="https://buymeacoffee.com/erez.c137">
-    <img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support%20Me-yellow?style=for-the-badge&logo=buy-me-a-coffee">
-  </a>
-</p>
-
-Can't contribute financially? No problem! **Sharing & Starring the repo** on GitHub is a free and hugely appreciated way to show your support. ❤️
-
----
-
-## Building from Source
-
-<details>
-<summary>Click to expand</summary>
-
-### Prerequisites
-
--   [Python 3.11+](https://www.python.org/downloads/)
--   [Git](https://git-scm.com/downloads/)
--   (Optional but Recommended) [Inno Setup 6](https://jrsoftware.org/isinfo.php) for building the final Windows installer.
-
-### Development & Build Instructions
-
-1.  **Clone the Repository:**
-
-    ```bash
-    git clone https://github.com/erez-c137/NetSpeedTray.git
-    cd NetSpeedTray
-    ```
-
-2.  **Create and Activate a Virtual Environment:**
-
-    ```powershell
-    # PowerShell (Recommended on Windows)
-    python -m venv .venv
-    .\.venv\Scripts\Activate.ps1
-    ```
-
-    ```bash
-    # CMD
-    python -m venv .venv
-    .\.venv\Scripts\activate.bat
-    ```
-
-3.  **Install All Dependencies:**
-    This project uses `pip-tools` for specific version pinning. To set up your environment, simply run:
-
-    ```bash
-    pip install -r dev-requirements.txt
-    ```
-
-    > **Note for Python 3.13+ Users:** If you are using a pre-release version of Python (e.g., 3.14), you may need to install dependencies with the `--pre` flag if stable wheels are not yet available:
-    > `pip install --pre -r dev-requirements.txt`
-
-4.  **Run the Application from Source:**
-
-    ```bash
-    python src/monitor.py
-    ```
-
-5.  **Run the Test Suite (Optional):**
-
-    ```bash
-    pytest -v
-    ```
-
-6.  **Build the Executable and Installer (Optional):**
-    -   **Full Package:** To build both the executable and the Inno Setup installer:
-        ```bash
-        .\build\build.bat
-        ```
-    -   **Executable Only:** To build just the standalone executable (no installer):
-        ```bash
-        .\build\build-exe-only.bat
-        ```
-    -   The final files will be created in the `dist` folder.
-
-</details>
-
-## Contributing
-
-Contributions, issues, and feature requests are welcome! Please feel free to open an issue or submit a pull request.
-
-> **A Note on System UI Integration:** To ensure a clean and predictable experience, NetSpeedTray is designed to integrate seamlessly with core Windows UI. Due to how Windows layers its system menus, elements like the Start Menu and Action Center will always appear on top.
->
-> Instead of being awkwardly covered, the widget will gracefully hide when these menus are active and **reappear instantly** the moment they are closed. This behavior is intentional and ensures the widget feels like a polished, non-intrusive part of the operating system.
-
-## License
-
-This project is licensed under the [GNU GPL v3.0](LICENSE).
+*Created by Shayer Mahmud Sowmik*

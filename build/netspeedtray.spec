@@ -45,7 +45,7 @@ exe = EXE(
     [],
     a.binaries,
     a.datas,
-    name='NetSpeedTray',
+    name='NetGlance',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -68,5 +68,5 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name='NetSpeedTray'
+    name='NetGlance'
 )
