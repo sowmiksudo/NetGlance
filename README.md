@@ -23,7 +23,7 @@ It features a lightweight, persistent taskbar overlay showing live upload and do
 
 | Taskbar Overlay | Analytics Dashboard |
 | :---: | :---: |
-| *(Add an image of your taskbar widget here: `![Taskbar](assets/taskbar.png)`)* | *(Add an image of your dashboard here: `![Dashboard](assets/dashboard.png)`)* |
+| ![Taskbar](assets/taskbar.png) | ![Dashboard](assets/dashboard.png) |
 
 ## 🚀 Installation & Usage
 
@@ -37,9 +37,9 @@ You do not need to install Python to use this app.
 If you want to run the code directly or contribute to the project:
 
 1. Clone the repository:
-   ```bash
-   git clone [https://github.com/sowmiksudo/](https://github.com/sowmiksudo/NetGlance).git
-   cd NetGlance
+```bash
+git clone [https://github.com/sowmiksudo/](https://github.com/sowmiksudo/NetGlance).git
+cd NetGlance
 
 ```
 
