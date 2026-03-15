@@ -38,7 +38,7 @@ If you want to run the code directly or contribute to the project:
 
 1. Clone the repository:
 ```bash
-git clone [https://github.com/sowmiksudo/](https://github.com/sowmiksudo/NetGlance).git
+git clone https://github.com/sowmiksudo/NetGlance.git
 cd NetGlance
 
 ```
@@ -75,7 +75,7 @@ python src/monitor.py
 
 This project was built to expand upon the fantastic work done by the open-source community.
 
-A massive thank you to **[erez-c137](https://github.com/erez-c137)**. The core network monitoring engine, Z-order taskbar positioning logic, and high-performance data vectorization in this application are heavily based on his brilliant [NetSpeedTray](https://github.com/erez-c137/NetSpeedTray) project. If you are looking for a purely minimalist network monitor, highly recommend checking out his original repo!
+A massive thanks to **[erez-c137](https://github.com/erez-c137)**. The core network monitoring engine, Z-order taskbar positioning logic, and high-performance data vectorization in this application are heavily based on his brilliant [NetSpeedTray](https://github.com/erez-c137/NetSpeedTray) project. If you are looking for a purely minimalist network monitor, I highly recommend checking out his original repo!
 
 ## 📜 License
 
