@@ -19,11 +19,10 @@ It features a lightweight, persistent taskbar overlay showing live upload and do
 * **Highly Optimized:** Uses vectorized data processing to ensure near-zero CPU footprint.
 * **Theme Adaptive:** Blends natively with Windows light and dark modes.
 
-## 📸 Screenshots
-
-| Taskbar Overlay | Analytics Dashboard |
-| :---: | :---: |
-| ![Taskbar](assets/taskbar.png) | ![Dashboard](assets/dashboard.png) |
+## 📸 NetGlance Demo
+<p align="center">
+  <img width="600" src="assets/6068.gif"controls />
+</p>
 
 ## 🚀 Installation & Usage
 
@@ -67,7 +66,7 @@ python src/monitor.py
 
 ## 🛠️ How it Works
 
-* **Left-Click** the system tray icon to toggle the detailed Analytics Dashboard.
+* **Double Left-Click** the system tray icon to toggle the detailed Analytics Dashboard.
 * **Right-Click** the system tray icon to access Settings or Exit the application.
 * **Click and Drag** the taskbar overlay to reposition it if needed.
 
