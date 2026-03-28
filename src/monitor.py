@@ -47,8 +47,14 @@ class SingleInstanceChecker:
         try:
             self.mutex = win32event.CreateMutex(None, False, constants.app.MUTEX_NAME)
             if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
-                self.logger.error("Another instance of NetSpeedTray is already running.")
-                raise RuntimeError("Application is already running.")
+                # Signal the existing instance to show the dashboard before exiting
+                try:
+                    WM_SHOW_DASHBOARD = win32gui.RegisterWindowMessage("NetSpeedTray_WM_SHOW_DASHBOARD")
+                    win32gui.PostMessage(win32con.HWND_BROADCAST, WM_SHOW_DASHBOARD, 0, 0)
+                    self.logger.info("Signaled existing instance to show dashboard.")
+                except Exception as sig_err:
+                    self.logger.error(f"Failed to signal existing instance: {sig_err}")
+                raise RuntimeError("Another instance is already running.")
         except win32api.error as e:
             self.logger.error("Failed to create mutex: %s", e)
             raise RuntimeError(f"Failed to create mutex: {e}") from e
@@ -177,6 +183,15 @@ def main() -> int:
             # 9. Start the application event loop.
             return app.exec()
 
+    except RuntimeError as e:
+        if str(e) == "Another instance is already running.":
+            logger.info("Duplicate instance detected. Exiting silently.")
+            return 0
+        # Re-raise non-duplicate RuntimeErrors to be caught by the general handler
+        logger.critical("A critical error occurred during startup: %s", e, exc_info=True)
+        title = i18n_strings.ERROR_WINDOW_TITLE if i18n_strings else "Application Error"
+        QMessageBox.critical(None, title, f"A critical error occurred and NetSpeedTray must close:\n\n{e}")
+        return 1
     except Exception as e:
         # This is a global catch-all for any critical error during startup.
         logger.critical("A critical error occurred during startup: %s", e, exc_info=True)

@@ -230,15 +230,17 @@ class PositionCalculator:
             visible_tb_height = full_geom.bottom() - avail_geom.bottom()
             y_origin = avail_geom.bottom() + 1
             if visible_tb_height <= 0:
-                visible_tb_height = (taskbar_info.rect[3] - taskbar_info.rect[1]) / dpi_scale
-                y_origin = taskbar_info.rect[1] / dpi_scale
+                # Autohide ON: use known taskbar height (already logical px) and snap to screen bottom edge
+                visible_tb_height = taskbar_info.height
+                y_origin = full_geom.bottom() + 1 - visible_tb_height
         elif edge == constants.taskbar.edge.TOP:
             # Visible taskbar is the space above available geometry
             visible_tb_height = avail_geom.top() - full_geom.top()
             y_origin = full_geom.top()
             if visible_tb_height <= 0:
-                visible_tb_height = (taskbar_info.rect[3] - taskbar_info.rect[1]) / dpi_scale
-                y_origin = taskbar_info.rect[1] / dpi_scale
+                # Autohide ON: use known taskbar height (already logical px) and snap to screen top edge
+                visible_tb_height = taskbar_info.height
+                y_origin = full_geom.top()
         else:
             # Fallback to rect-based if we're not sure
             visible_tb_height = (taskbar_info.rect[3] - taskbar_info.rect[1]) / dpi_scale
@@ -296,14 +298,14 @@ class PositionCalculator:
             x_origin = avail_geom.right() + 1
             if visible_tb_width <= 0:
                 visible_tb_width = (taskbar_info.rect[2] - taskbar_info.rect[0]) / dpi_scale
-                x_origin = taskbar_info.rect[0] / dpi_scale
+                x_origin = full_geom.right() + 1 - visible_tb_width
         else: # LEFT
             # Visible taskbar is the space to the left of available geometry
             visible_tb_width = avail_geom.left() - full_geom.left()
             x_origin = full_geom.left()
             if visible_tb_width <= 0:
                 visible_tb_width = (taskbar_info.rect[2] - taskbar_info.rect[0]) / dpi_scale
-                x_origin = taskbar_info.rect[0] / dpi_scale
+                x_origin = full_geom.left()
             
         # Calculate X: center widget horizontally in taskbar gap
         x_center = x_origin + (visible_tb_width - widget_width) / 2.0

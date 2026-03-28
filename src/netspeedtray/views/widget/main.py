@@ -306,7 +306,6 @@ class NetworkSpeedWidget(QWidget):
                  self.logger.warning("Hiding widget as a last resort after sustained detection failure.")
                  self.setVisible(False)
 
-
     def _delayed_initial_show(self) -> None:
         """Triggers the initial authoritative visibility check."""
         self.logger.debug("Executing delayed initial show...")
@@ -425,6 +424,9 @@ class NetworkSpeedWidget(QWidget):
             
             # For immediate hide, we just connect to a lambda that hides self
             self.system_event_handler.immediate_hide_requested.connect(lambda: self.setVisible(False))
+            
+            # Duplicate Instance Focus: Show dashboard when signaled by a second instance
+            self.system_event_handler.show_dashboard_requested.connect(self.toggle_analytics_dashboard)
             
             # Handle taskbar restarts
             self.system_event_handler.taskbar_restarted.connect(lambda: [QTimer.singleShot(i * constants.timeouts.TASKBAR_RESTART_RECOVERY_DELAY_MS, self._execute_refresh) for i in range(constants.timeouts.TASKBAR_RESTART_RETRIES)])
@@ -964,6 +966,8 @@ class NetworkSpeedWidget(QWidget):
             if self.timer_manager: self.timer_manager.cleanup()
             if self.controller: self.controller.cleanup()
             if self.widget_state: self.widget_state.cleanup()
+            if hasattr(self, 'tray_manager') and self.tray_manager:
+                self.tray_manager.cleanup()
 
             # (The rest of the cleanup method for saving config remains the same)
             if self.graph_window:

@@ -9,7 +9,7 @@ from typing import Final
 class UpdateMode:
     # ❌ DON'T OFFER 100ms - too jarring for human perception
     # Human perception: 200-300ms is threshold for noticeable flicker
-    AGGRESSIVE: Final[float] = 1.0   # 1 sec (current default, smooth & responsive)
+    AGGRESSIVE: Final[float] = 0.5   # 500ms (responsive, matches fast.com update pace)
     BALANCED: Final[float] = 2.0     # 2 sec
     EFFICIENT: Final[float] = 5.0    # 5 sec
     POWER_SAVER: Final[float] = 10.0 # 10 sec (still feels responsive, saves resources)

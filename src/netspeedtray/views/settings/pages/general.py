@@ -129,15 +129,23 @@ class GeneralPage(QWidget):
         # Propagate change notification
         self.on_change()
     
+    @staticmethod
+    def _format_rate_value(rate: float) -> str:
+        """Format a rate value as a human-readable duration string."""
+        if rate == int(rate):
+            return f"{int(rate)}s"
+        return f"{rate:.1f}s"
+
     def _format_update_rate_label(self, slider_position: int) -> str:
         """Format slider position as a human-readable label."""
         # Map slider position (0-4) to update mode label
+        fmt = self._format_rate_value
         position_to_mode = {
             0: self.i18n.SMART_MODE_LABEL,
-            1: f"{int(UpdateMode.AGGRESSIVE)}s" if not hasattr(self.i18n, 'UPDATE_MODE_AGGRESSIVE_LABEL') else self.i18n.UPDATE_MODE_AGGRESSIVE_LABEL,
-            2: f"{int(UpdateMode.BALANCED)}s" if not hasattr(self.i18n, 'UPDATE_MODE_BALANCED_LABEL') else self.i18n.UPDATE_MODE_BALANCED_LABEL,
-            3: f"{int(UpdateMode.EFFICIENT)}s" if not hasattr(self.i18n, 'UPDATE_MODE_EFFICIENT_LABEL') else self.i18n.UPDATE_MODE_EFFICIENT_LABEL,
-            4: f"{int(UpdateMode.POWER_SAVER)}s" if not hasattr(self.i18n, 'UPDATE_MODE_POWER_SAVER_LABEL') else self.i18n.UPDATE_MODE_POWER_SAVER_LABEL,
+            1: fmt(UpdateMode.AGGRESSIVE) if not hasattr(self.i18n, 'UPDATE_MODE_AGGRESSIVE_LABEL') else self.i18n.UPDATE_MODE_AGGRESSIVE_LABEL,
+            2: fmt(UpdateMode.BALANCED) if not hasattr(self.i18n, 'UPDATE_MODE_BALANCED_LABEL') else self.i18n.UPDATE_MODE_BALANCED_LABEL,
+            3: fmt(UpdateMode.EFFICIENT) if not hasattr(self.i18n, 'UPDATE_MODE_EFFICIENT_LABEL') else self.i18n.UPDATE_MODE_EFFICIENT_LABEL,
+            4: fmt(UpdateMode.POWER_SAVER) if not hasattr(self.i18n, 'UPDATE_MODE_POWER_SAVER_LABEL') else self.i18n.UPDATE_MODE_POWER_SAVER_LABEL,
         }
         return position_to_mode.get(slider_position, "Unknown")
 
@@ -148,6 +156,9 @@ class GeneralPage(QWidget):
             return 0
         elif abs(update_rate - UpdateMode.AGGRESSIVE) < 0.1:
             return 1
+        elif abs(update_rate - 1.0) < 0.1:
+            # Backward compat: old AGGRESSIVE was 1.0s, map to new AGGRESSIVE slot
+            return 1
         elif abs(update_rate - UpdateMode.BALANCED) < 0.1:
             return 2
         elif abs(update_rate - UpdateMode.EFFICIENT) < 0.1:
@@ -155,14 +166,14 @@ class GeneralPage(QWidget):
         elif abs(update_rate - UpdateMode.POWER_SAVER) < 0.1:
             return 4
         else:
-            # Default to BALANCED if unrecognized
-            return 2
+            # Default to AGGRESSIVE if unrecognized
+            return 1
 
     def _slider_position_to_rate(self, slider_position: int) -> float:
         """Convert slider position (0-4) to update_rate value."""
         position_to_rate = {
             0: UpdateMode.SMART,        # -1.0
-            1: UpdateMode.AGGRESSIVE,   # 1.0
+            1: UpdateMode.AGGRESSIVE,   # 0.5
             2: UpdateMode.BALANCED,     # 2.0
             3: UpdateMode.EFFICIENT,    # 5.0
             4: UpdateMode.POWER_SAVER,  # 10.0

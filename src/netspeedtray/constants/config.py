@@ -41,7 +41,7 @@ class ConfigConstants:
     CONFIG_SCHEMA_VERSION: Final[str] = "1.0"
     
     # --- Default Values for Individual Settings (referencing other constants) ---
-    DEFAULT_UPDATE_RATE: Final[float] = 1.0
+    DEFAULT_UPDATE_RATE: Final[float] = 0.5
     MINIMUM_UPDATE_RATE: Final[float] = timers.MINIMUM_INTERVAL_MS / 1000.0
     DEFAULT_FONT_FAMILY: Final[str] = fonts.DEFAULT_FONT
     DEFAULT_FONT_SIZE: Final[int] = 9

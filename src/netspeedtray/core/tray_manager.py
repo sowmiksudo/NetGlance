@@ -1,8 +1,8 @@
 """
 Tray Icon Manager Module for NetSpeedTray.
 
-This module encapsulates the logic for the application's icon and context menu,
-which simulate a system tray experience. It handles icon loading, menu creation,
+This module encapsulates the logic for the application's system tray icon and
+context menu. It handles icon loading, tray icon creation, menu creation,
 and smart menu positioning.
 """
 
@@ -13,7 +13,7 @@ from typing import Optional, TYPE_CHECKING
 
 from PyQt6.QtCore import QObject, QPoint, Qt, QRect
 from PyQt6.QtGui import QIcon, QAction
-from PyQt6.QtWidgets import QMenu, QApplication, QWidget
+from PyQt6.QtWidgets import QMenu, QApplication, QSystemTrayIcon, QWidget
 
 from netspeedtray import constants
 from netspeedtray.utils import styles as style_utils
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 class TrayIconManager(QObject):
     """
-    Manages the application icon and context menu logic.
+    Manages the system tray icon and context menu logic.
     """
     def __init__(self, parent_widget: 'NetworkSpeedWidget', i18n: 'I18nStrings'):
         super().__init__(parent_widget)
@@ -35,6 +35,7 @@ class TrayIconManager(QObject):
         
         self.context_menu: Optional[QMenu] = None
         self.app_icon: Optional[QIcon] = None
+        self.system_tray_icon: Optional[QSystemTrayIcon] = None
         
         # State tracking
         self.is_context_menu_visible: bool = False
@@ -43,9 +44,10 @@ class TrayIconManager(QObject):
         self.pause_action: Optional[QAction] = None
 
     def initialize(self) -> None:
-        """Loads the icon and initializes the context menu."""
+        """Loads the icon, initializes the context menu, and creates the system tray icon."""
         self._load_and_set_icon()
         self._init_context_menu()
+        self._init_system_tray_icon()
 
     def _load_and_set_icon(self) -> None:
         """
@@ -99,6 +101,81 @@ class TrayIconManager(QObject):
             self.logger.debug("Context menu initialized successfully.")
         except Exception as e:
             self.logger.error("Error initializing context menu: %s", e, exc_info=True)
+
+    def _init_system_tray_icon(self) -> None:
+        """
+        Creates and shows the QSystemTrayIcon in the Windows notification area.
+        This is the standard Windows convention for background/utility applications.
+        """
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            self.logger.warning("System tray is not available on this platform. Skipping tray icon creation.")
+            return
+
+        try:
+            self.system_tray_icon = QSystemTrayIcon(self.widget)
+
+            # Set the icon — use the loaded app icon, or fall back to a default
+            if self.app_icon and not self.app_icon.isNull():
+                self.system_tray_icon.setIcon(self.app_icon)
+            else:
+                # Fallback: use the application's window icon
+                app = QApplication.instance()
+                if app and not app.windowIcon().isNull():
+                    self.system_tray_icon.setIcon(app.windowIcon())
+                self.logger.warning("No app icon available for system tray. Using application default.")
+
+            # Set tooltip
+            self.system_tray_icon.setToolTip(f"{constants.app.APP_NAME} v{constants.app.VERSION}")
+
+            # Attach the same context menu used by right-click on the widget
+            if self.context_menu:
+                self.system_tray_icon.setContextMenu(self.context_menu)
+
+            # Connect activation signals (single-click, double-click)
+            self.system_tray_icon.activated.connect(self._on_tray_icon_activated)
+
+            # Show the tray icon
+            self.system_tray_icon.show()
+            self.logger.debug("System tray icon created and shown successfully.")
+
+        except Exception as e:
+            self.logger.error("Failed to create system tray icon: %s", e, exc_info=True)
+
+    def _on_tray_icon_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
+        """
+        Handles activation of the system tray icon.
+        
+        - Double-click: Toggle the analytics dashboard (same as double-clicking the widget)
+        - Single-click (Trigger): Toggle the analytics dashboard
+        """
+        try:
+            if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+                if hasattr(self.widget, 'toggle_analytics_dashboard'):
+                    self.widget.toggle_analytics_dashboard()
+            elif reason == QSystemTrayIcon.ActivationReason.Trigger:
+                # Single left-click: toggle dashboard (standard Windows tray behavior)
+                if hasattr(self.widget, 'toggle_analytics_dashboard'):
+                    self.widget.toggle_analytics_dashboard()
+        except Exception as e:
+            self.logger.error("Error handling tray icon activation: %s", e, exc_info=True)
+
+    def update_tooltip(self, upload_speed: str = "", download_speed: str = "") -> None:
+        """
+        Updates the system tray icon tooltip with current speed information.
+        
+        Args:
+            upload_speed: Formatted upload speed string.
+            download_speed: Formatted download speed string.
+        """
+        if self.system_tray_icon:
+            try:
+                if upload_speed and download_speed:
+                    tooltip = f"{constants.app.APP_NAME}\n↑ {upload_speed}\n↓ {download_speed}"
+                else:
+                    tooltip = f"{constants.app.APP_NAME} v{constants.app.VERSION}"
+                self.system_tray_icon.setToolTip(tooltip)
+            except Exception as e:
+                self.logger.error("Error updating tray tooltip: %s", e, exc_info=True)
 
     def show_context_menu(self) -> None:
         """
@@ -163,3 +240,17 @@ class TrayIconManager(QObject):
         except Exception as e:
             self.logger.error("Error calculating menu position: %s", e, exc_info=True)
             return self.widget.mapToGlobal(self.widget.rect().center())
+
+    def cleanup(self) -> None:
+        """
+        Hides and removes the system tray icon. Must be called during application shutdown
+        to prevent ghost icons lingering in the notification area.
+        """
+        if self.system_tray_icon:
+            try:
+                self.system_tray_icon.hide()
+                self.system_tray_icon.deleteLater()
+                self.system_tray_icon = None
+                self.logger.debug("System tray icon cleaned up.")
+            except Exception as e:
+                self.logger.error("Error cleaning up system tray icon: %s", e, exc_info=True)

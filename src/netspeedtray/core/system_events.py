@@ -28,20 +28,22 @@ from netspeedtray.utils.win_event_hook import (
 
 class ThemeChangeFilter(QAbstractNativeEventFilter):
     """
-    Native event filter to capture WM_SETTINGCHANGE messages.
+    Native event filter to capture WM_SETTINGCHANGE and custom messages.
     """
     WM_SETTINGCHANGE = 0x001A
 
     def __init__(self, handler):
         super().__init__()
         self.handler = handler
+        self.WM_SHOW_DASHBOARD = win32gui.RegisterWindowMessage("NetSpeedTray_WM_SHOW_DASHBOARD")
 
     def nativeEventFilter(self, eventType, message):
         if eventType == "windows_generic_MSG":
             msg = ctypes.wintypes.MSG.from_address(int(message))
             if msg.message == self.WM_SETTINGCHANGE:
-                # Emit signal directly from the filter
                 self.handler.theme_changed.emit()
+            elif msg.message == self.WM_SHOW_DASHBOARD:
+                self.handler.show_dashboard_requested.emit()
         return False, 0
 
 class SystemEventHandler(QObject):
@@ -61,7 +63,8 @@ class SystemEventHandler(QObject):
     taskbar_changed = pyqtSignal()
     taskbar_restarted = pyqtSignal()
     events_paused = pyqtSignal(bool)
-    theme_changed = pyqtSignal() # New signal
+    theme_changed = pyqtSignal()
+    show_dashboard_requested = pyqtSignal()
 
     def __init__(self, parent: Optional[QObject] = None):
         super().__init__(parent)

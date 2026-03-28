@@ -185,6 +185,12 @@ class WidgetLayoutManager:
                 else:
                     visible_tb_height = (taskbar_info.rect[3] - taskbar_info.rect[1]) / dpi_scale
 
+                # When autohide is ON, full_geom == avail_geom → visible_tb_height = 0.
+                # Fall back to the known logical taskbar height.
+                # NOTE: taskbar_info.height is ALREADY in logical pixels.
+                if visible_tb_height <= 0:
+                    visible_tb_height = taskbar_info.height
+
                 calculated_height = visible_tb_height
 
             else:

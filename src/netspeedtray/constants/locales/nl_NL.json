@@ -255,7 +255,7 @@
     "BUTTON_RESET_VIEW": "Weergave resetten",
     "ZOOM_HINT": "Dubbelklikken voor reset",
     "FORCE_MB_LABEL": "Forceer MB-weergave",
-    "UPDATE_MODE_AGGRESSIVE_LABEL": "Agressief (1s)",
+    "UPDATE_MODE_AGGRESSIVE_LABEL": "Agressief (0.5s)",
     "UPDATE_MODE_BALANCED_LABEL": "Gebalanceerd (2s)",
     "UPDATE_MODE_EFFICIENT_LABEL": "Efficiënt (5s)",
     "UPDATE_MODE_POWER_SAVER_LABEL": "Energiebesparing (10s)"

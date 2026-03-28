@@ -28,13 +28,13 @@ VSVersionInfo(
   kids=[
     StringFileInfo(
       [
-        StringStruct('CompanyName', 'Erez C137'),
-        StringStruct('FileDescription', 'NetSpeedTray'),
+        StringStruct('CompanyName', 'Sowmik'),
+        StringStruct('FileDescription', 'NetGlance'),
         StringStruct('FileVersion', '{version_full_str}'),
-        StringStruct('InternalName', 'NetSpeedTray'),
-        StringStruct('LegalCopyright', 'Copyright (c) Erez C137'),
-        StringStruct('OriginalFilename', 'NetSpeedTray.exe'),
-        StringStruct('ProductName', 'NetSpeedTray'),
+        StringStruct('InternalName', 'NetGlance'),
+        StringStruct('LegalCopyright', 'Copyright (c) Shayer Mahmud Sowmik'),
+        StringStruct('OriginalFilename', 'NetGlance.exe'),
+        StringStruct('ProductName', 'NetGlance'),
         StringStruct('ProductVersion', '{version_str}'),
       ]
     ),

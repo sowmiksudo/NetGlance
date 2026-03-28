@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.3.0-beta] - 2026-03-28
+
+This is a beta release introducing key UX improvements aligned with Windows software conventions and performance optimizations for real-time speed monitoring.
+
+### ✨ New Features
+
+- **System Tray Icon:** NetGlance now places a proper icon in the Windows notification area (system tray), following standard Windows desktop application conventions. The tray icon provides:
+  - Quick access to **Settings** and **Exit** via right-click context menu.
+  - Single-click or double-click to toggle the **Analytics Dashboard**.
+  - Tooltip displaying the app name and version.
+  - Proper cleanup on exit to prevent ghost icons.
+
+- **New Application Logo:** Replaced the legacy NetSpeedTray icon with a modern, purpose-built NetGlance logo featuring a speed meter design with upload/download indicators. Available in multi-resolution ICO (16–256px) and high-res PNG (256px, 512px) formats.
+
+### 🚀 Performance
+
+- **2× Faster Speed Updates:** Reduced the default polling interval from 1.0s to 0.5s (`AGGRESSIVE` mode), halving the display latency and ensuring NetGlance updates as fast or faster than real-time speed testing tools like fast.com.
+  - Updated default update rate for new installations.
+  - Existing users with the old 1.0s "Aggressive" setting are automatically migrated to the new 0.5s rate.
+
+### 🐛 Bug Fixes
+
+- **Settings Slider Label Fix:** Fixed a display bug where the "Aggressive" mode label would show "0s" instead of "0.5s" due to integer truncation of sub-second intervals.
+- **Backward Compatibility:** Users upgrading from v1.2.x with a saved `update_rate` of 1.0s are automatically mapped to the new Aggressive preset rather than falling back to Balanced (2.0s).
+
+### 🏗️ Build & Branding
+
+- **Updated Build Metadata:** The PyInstaller version info now references "NetGlance" and the correct author, replacing legacy "NetSpeedTray" branding in the executable's file properties.
+- **Locale Updates:** Updated the "Aggressive" mode label from "(1s)" to "(0.5s)" across all 9 supported languages.
+
+---
+
 ## [1.2.6] - 2026-02-21
 
 ### Added

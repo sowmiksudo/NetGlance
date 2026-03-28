@@ -255,7 +255,7 @@
     "BUTTON_RESET_VIEW": "Ansicht zurücksetzen",
     "ZOOM_HINT": "Doppelklick zum Zurücksetzen",
     "FORCE_MB_LABEL": "MB-Anzeige erzwingen",
-    "UPDATE_MODE_AGGRESSIVE_LABEL": "Aggressiv (1s)",
+    "UPDATE_MODE_AGGRESSIVE_LABEL": "Aggressiv (0.5s)",
     "UPDATE_MODE_BALANCED_LABEL": "Ausgeglichen (2s)",
     "UPDATE_MODE_EFFICIENT_LABEL": "Effizient (5s)",
     "UPDATE_MODE_POWER_SAVER_LABEL": "Energiesparmodus (10s)"

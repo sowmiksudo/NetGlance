@@ -615,28 +615,33 @@ def is_taskbar_visible(taskbar_info: Optional[TaskbarInfo]) -> bool:
         auto_hide_enabled = bool(state_flags & constants.shell.api.ABS_AUTOHIDE)
 
         if auto_hide_enabled:
-            screen = taskbar_info.get_screen()
-            if not screen: return False
-
-            screen_geo = screen.geometry()
-            dpi = taskbar_info.dpi_scale
-            screen_rect_phys = (
-                int(screen_geo.left() * dpi), int(screen_geo.top() * dpi),
-                int(screen_geo.right() * dpi) + 1, int(screen_geo.bottom() * dpi) + 1
-            )
-            tb_rect_phys = taskbar_info.rect
-            edge = taskbar_info.get_edge_position()
-            
-            tolerance = constants.taskbar.taskbar.AUTOHIDE_TOLERANCE
-            if edge == constants.taskbar.edge.BOTTOM and tb_rect_phys[1] >= screen_rect_phys[3] - tolerance: return False
-            if edge == constants.taskbar.edge.TOP and tb_rect_phys[3] <= screen_rect_phys[1] + tolerance: return False
-            if edge == constants.taskbar.edge.LEFT and tb_rect_phys[2] <= screen_rect_phys[0] + tolerance: return False
-            if edge == constants.taskbar.edge.RIGHT and tb_rect_phys[0] >= screen_rect_phys[2] - tolerance: return False
+            # When autohide is ON, the widget stays always visible.
+            # The position_manager handles snapping to the screen edge
+            # when the taskbar is hidden.
+            return True
 
         return True
 
     except Exception as e:
         logger.error(f"Error checking taskbar visibility for HWND={taskbar_info.hwnd}: {e}", exc_info=True)
+        return False
+
+
+def is_autohide_enabled(taskbar_info: Optional[TaskbarInfo]) -> bool:
+    """
+    Checks if the given taskbar has auto-hide enabled.
+    Returns False if taskbar_info is None or if the check fails.
+    """
+    if not taskbar_info or taskbar_info.hwnd == 0:
+        return False
+    try:
+        abd = APPBARDATA()
+        abd.cbSize = ctypes.sizeof(abd)
+        abd.hWnd = taskbar_info.hwnd
+        state_flags = windll.shell32.SHAppBarMessage(constants.shell.api.ABM_GETSTATE, byref(abd))
+        return bool(state_flags & constants.shell.api.ABS_AUTOHIDE)
+    except Exception as e:
+        logger.error(f"Error checking autohide state: {e}", exc_info=True)
         return False
 
 
