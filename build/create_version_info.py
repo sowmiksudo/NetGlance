@@ -3,8 +3,12 @@ import sys
 import os
 
 def create_version_file(version_str):
+    # Strip pre-release suffix for numeric version (e.g., "1.3.0-beta" -> "1.3.0")
+    import re
+    numeric_version = re.sub(r'[-+].*$', '', version_str)
+    
     # Ensure version has 4 parts (e.g., 1.1.8 -> 1.1.8.0)
-    parts = version_str.split('.')
+    parts = numeric_version.split('.')
     while len(parts) < 4:
         parts.append('0')
     

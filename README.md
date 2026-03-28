@@ -1,8 +1,15 @@
 # NetGlance
 
-![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)
-![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)
-![Platform: Windows](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-lightgrey.svg)
+<p align="center">
+  <img width="128" src="assets/NetGlance_256.png" alt="NetGlance Logo" />
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.3.0--beta-orange.svg" alt="Version 1.3.0-beta" />
+  <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+" />
+  <img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3" />
+  <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-lightgrey.svg" alt="Platform: Windows" />
+</p>
 
 **NetGlance** brings the clean, detailed, macOS-style network monitoring experience (similar to iStat Menus) directly to the Windows taskbar. 
 
@@ -11,11 +18,14 @@ It features a lightweight, persistent taskbar overlay showing live upload and do
 ## ✨ Features
 
 * **Taskbar Overlay:** Real-time upload and download speeds embedded directly over your Windows taskbar.
+* **System Tray Icon:** A proper notification area icon with quick-access context menu, following Windows conventions.
 * **macOS-Style Dashboard:** A frameless, beautifully styled pop-up triggered via the system tray.
-* **Real-Time Analytics:** * Live historical usage graphing (powered by `pyqtgraph`).
+* **Real-Time Analytics:**
+  * Live historical usage graphing (powered by `pyqtgraph`).
   * Total data usage tracking per session.
   * Local IP, physical MAC address, and active interface details.
   * Live latency (ping) and jitter monitoring.
+* **2× Faster Updates:** 0.5s polling interval for near-instant speed readings.
 * **Highly Optimized:** Uses vectorized data processing to ensure near-zero CPU footprint.
 * **Theme Adaptive:** Blends natively with Windows light and dark modes.
 
