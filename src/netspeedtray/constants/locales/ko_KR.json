@@ -214,7 +214,7 @@
     "KIBITS_SHORT_LABEL": "Kib",
     "MIBITS_SHORT_LABEL": "Mib",
     "GIBITS_SHORT_LABEL": "Gib",
-        "UNIT_TYPE_LABEL": "단위 유형",
+    "UNIT_TYPE_LABEL": "단위 유형",
     "UNIT_TYPE_BITS_DECIMAL": "Bits (Kbps, Mbps)",
     "UNIT_TYPE_BITS_BINARY": "Bits (Kibps, Mibps)",
     "UNIT_TYPE_BYTES_DECIMAL": "Bytes (KB/초, MB/초)",
@@ -232,7 +232,7 @@
     "PNG_FILE_FILTER": "PNG 이미지 (*.png);;모든 파일 (*.*)",
     "LOG_FILES_FILTER": "로그 파일",
     "ALL_FILES_FILTER": "모든 파일",
-        "CSV_HEADER_TIMESTAMP": "타임스탬프",
+    "CSV_HEADER_TIMESTAMP": "타임스탬프",
     "CSV_HEADER_UPLOAD_MBPS": "업로드 (Mbps)",
     "CSV_HEADER_DOWNLOAD_MBPS": "다운로드 (Mbps)",
     "FONT_WEIGHT_THIN": "얇은",
@@ -258,5 +258,6 @@
     "UPDATE_MODE_AGGRESSIVE_LABEL": "공격적 (0.5초)",
     "UPDATE_MODE_BALANCED_LABEL": "균형적 (2초)",
     "UPDATE_MODE_EFFICIENT_LABEL": "효율적 (5초)",
-    "UPDATE_MODE_POWER_SAVER_LABEL": "절전 (10초)"
+    "UPDATE_MODE_POWER_SAVER_LABEL": "절전 (10초)",
+    "SHOW_SYSTEM_RESOURCES_LABEL": "Show CPU/RAM Usage"
 }

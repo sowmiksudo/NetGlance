@@ -258,5 +258,6 @@
     "UPDATE_MODE_AGGRESSIVE_LABEL": "Aggressive (0.5s)",
     "UPDATE_MODE_BALANCED_LABEL": "Balanced (2s)",
     "UPDATE_MODE_EFFICIENT_LABEL": "Efficient (5s)",
-    "UPDATE_MODE_POWER_SAVER_LABEL": "Power Saver (10s)"
+    "UPDATE_MODE_POWER_SAVER_LABEL": "Power Saver (10s)",
+    "SHOW_SYSTEM_RESOURCES_LABEL": "Show CPU/RAM Usage"
 }

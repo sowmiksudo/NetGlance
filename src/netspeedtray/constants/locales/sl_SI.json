@@ -258,5 +258,6 @@
     "UPDATE_MODE_AGGRESSIVE_LABEL": "Agresivno (0.5s)",
     "UPDATE_MODE_BALANCED_LABEL": "Uravnoteženo (2s)",
     "UPDATE_MODE_EFFICIENT_LABEL": "Učinkovito (5s)",
-    "UPDATE_MODE_POWER_SAVER_LABEL": "Varčevanje z energijo (10s)"
+    "UPDATE_MODE_POWER_SAVER_LABEL": "Varčevanje z energijo (10s)",
+    "SHOW_SYSTEM_RESOURCES_LABEL": "Show CPU/RAM Usage"
 }

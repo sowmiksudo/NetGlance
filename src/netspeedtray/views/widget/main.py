@@ -102,6 +102,8 @@ class NetworkSpeedWidget(QWidget):
         
         self.upload_speed: float = 0.0
         self.download_speed: float = 0.0
+        self.cpu_usage: float = 0.0
+        self.ram_usage: float = 0.0
         self.taskbar_height: int = taskbar_height
         self._dragging: bool = False
         self._drag_offset: QPoint = QPoint()
@@ -365,6 +367,13 @@ class NetworkSpeedWidget(QWidget):
         self.update() # Trigger a repaint
 
 
+    def update_system_stats(self, cpu: float, ram: float) -> None:
+        """Slot for the monitor thread's system_stats_ready signal."""
+        self.cpu_usage = cpu
+        self.ram_usage = ram
+        self.update() # Trigger a repaint
+
+
 
 
 
@@ -412,6 +421,7 @@ class NetworkSpeedWidget(QWidget):
             # Connect core component signals
             # self.timer_manager.stats_updated.connect(self.controller.update_speeds) # Deprecated
             self.monitor_thread.counters_ready.connect(self.controller.handle_network_counters)
+            self.monitor_thread.system_stats_ready.connect(self.update_system_stats)
             self.controller.display_speed_updated.connect(self.update_display_speeds)
             
             # Start the monitoring thread
@@ -501,6 +511,8 @@ class NetworkSpeedWidget(QWidget):
                 painter=painter,
                 upload=upload_bytes_sec,
                 download=download_bytes_sec,
+                cpu_usage=self.cpu_usage,
+                ram_usage=self.ram_usage,
                 width=self.width(),
                 height=self.height(),
                 config=render_config,
@@ -754,7 +766,7 @@ class NetworkSpeedWidget(QWidget):
             if self.analytics_dashboard.isVisible():
                 self.analytics_dashboard.hide_animated()
             else:
-                self.analytics_dashboard.show_anchored()
+                self.analytics_dashboard.show_anchored(self.geometry())
 
         except Exception as e:
             self.logger.error(f"Error toggling analytics dashboard: {e}", exc_info=True)

@@ -58,7 +58,7 @@ class ConfigConstants:
     DEFAULT_LOW_SPEED_COLOR: Final[str] = color.ORANGE # Referencing color palette
     DEFAULT_BACKGROUND_COLOR: Final[str] = "#000000" # Black
     DEFAULT_BACKGROUND_OPACITY: Final[int] = 0 # Percentage (0-100), default transparent
-    DEFAULT_GRAPH_ENABLED: Final[bool] = False
+    DEFAULT_GRAPH_ENABLED: Final[bool] = True
     DEFAULT_HISTORY_MINUTES: Final[int] = 15
     DEFAULT_GRAPH_OPACITY: Final[int] = 30
     DEFAULT_INTERFACE_MODE: Final[str] = network.interface.DEFAULT_MODE
@@ -80,6 +80,7 @@ class ConfigConstants:
     DEFAULT_TRAY_OFFSET_X: Final[int] = 3
     DEFAULT_LEGEND_POSITION: Final[str] = data.legend_position.DEFAULT_LEGEND_POSITION
     DEFAULT_SHOW_LEGEND: Final[bool] = True
+    DEFAULT_SHOW_SYSTEM_RESOURCES: Final[bool] = True
 
     CONFIG_FILENAME: Final[str] = "NetSpeedTray_Config.json"
     
@@ -134,6 +135,7 @@ class ConfigConstants:
         "arrow_font_family": DEFAULT_ARROW_FONT_FAMILY,
         "arrow_font_size": DEFAULT_ARROW_FONT_SIZE,
         "arrow_font_weight": DEFAULT_ARROW_FONT_WEIGHT,
+        "show_system_resources": DEFAULT_SHOW_SYSTEM_RESOURCES,
     }
     
     # --- Schema Definition for Modern Config Validation ---
@@ -189,6 +191,7 @@ class ConfigConstants:
         "settings_window_pos": {"type": (dict, type(None)), "default": None},
         "history_period_slider_value": {"type": int, "default": 0, "min": 0, "max": len(data.history_period.PERIOD_MAP) - 1},
         "show_legend": {"type": bool, "default": DEFAULT_SHOW_LEGEND},
+        "show_system_resources": {"type": bool, "default": DEFAULT_SHOW_SYSTEM_RESOURCES},
     }
 
 

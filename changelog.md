@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-beta] - 2026-04-07
+
+### ✨ New Features
+
+- **Analytics Dashboard Anchoring:** The analytical dashboard now automatically anchors and centers above the taskbar widget regardless of its position on the screen, instead of defaulting to the right side.
+- **System Resources:** Added system resources (CPU and RAM usage) to the taskbar widget.
+
 ## [1.3.0-beta] - 2026-03-28
 
 This is a beta release introducing key UX improvements aligned with Windows software conventions and performance optimizations for real-time speed monitoring.

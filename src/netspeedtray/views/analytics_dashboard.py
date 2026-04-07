@@ -1,10 +1,16 @@
 """
-AnalyticsDashboard — A macOS-style frameless network analytics panel.
+AnalyticsDashboard — Windows 11 Fluent Design network analytics panel.
 
-This module provides a unified, floating analytics widget inspired by macOS
-menu-bar popovers. It displays real-time network statistics in five stacked
-sections: speed header, usage graph, connection details, interface info,
-and active network processes.
+This module provides a unified, floating analytics widget following
+Windows 11 Fluent Design System principles. It uses DWM Acrylic backdrop,
+card-based layout, Segoe UI Variable typography, and Fluent accent colors.
+
+Displays real-time network statistics in card sections:
+    A. 60-second rolling usage history area chart
+    B. Connection details (totals, status, latency, jitter)
+    C. Interface & address information
+    D. System resources (CPU, RAM)
+    E. Top network processes
 
 All data is live, powered by psutil polling on background QThreads.
 """
@@ -25,42 +31,104 @@ from PyQt6.QtCore import (
 )
 from PyQt6.QtGui import (
     QColor, QFont, QPainter, QPainterPath, QBrush, QPen,
-    QLinearGradient, QRegion
+    QLinearGradient, QRegion, QPalette
 )
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QLabel, QFrame, QGraphicsDropShadowEffect, QApplication,
-    QSizePolicy, QPushButton
+    QLabel, QFrame, QApplication,
+    QSizePolicy, QPushButton, QProgressBar
 )
 import pyqtgraph as pg
 
 
-# ─── Design Tokens ────────────────────────────────────────────────────────────
+# ─── Windows 11 Fluent Design Tokens ─────────────────────────────────────────
 
 _COLORS = {
-    "bg":              "#1E1E1E",
-    "bg_section":      "#2A2A2A",
-    "separator":       "#3A3A3A",
+    # Backgrounds
+    "bg":              "#202020",       # Fluent Layer Background (base)
+    "bg_card":         "#2D2D2D",       # Card Surface (elevated)
+    "bg_card_hover":   "#333333",       # Card hover state
+    "card_border":     "#3D3D3D",       # Subtle card border (1px)
+    "separator":       "#383838",       # Divider inside cards
+
+    # Typography
     "text_primary":    "#FFFFFF",
-    "text_secondary":  "#8E8E93",
-    "text_tertiary":   "#636366",
-    "upload":          "#FF3B30",
-    "upload_fill":     "rgba(255, 59, 48, 0.25)",
-    "download":        "#007AFF",
-    "download_fill":   "rgba(0, 122, 255, 0.25)",
-    "status_green":    "#30D158",
-    "status_red":      "#FF453A",
-    "accent":          "#0A84FF",
+    "text_secondary":  "#9D9D9D",       # Fluent secondary text
+    "text_tertiary":   "#717171",       # Fluent tertiary / captions
+
+    # Accent Colors (Windows 11 Fluent)
+    "download":        "#60CDFF",       # Fluent teal-blue accent
+    "download_fill":   "rgba(96, 205, 255, 0.15)",
+    "upload":          "#F7630C",       # Fluent orange accent
+    "upload_fill":     "rgba(247, 99, 12, 0.12)",
+
+    # Status
+    "status_green":    "#6CCB5F",       # Fluent success green
+    "status_red":      "#FF99A4",       # Fluent error pink
+
+    # Accent
+    "accent":          "#60CDFF",       # Primary accent (matches download)
+    "accent_subtle":   "rgba(96, 205, 255, 0.08)",  # Very subtle accent tint
 }
 
-_FONT_FAMILY = '"SF Pro Display", "Segoe UI", "Helvetica Neue", sans-serif'
+_FONT_FAMILY = '"Segoe UI Variable", "Segoe UI", sans-serif'
 
-_PANEL_WIDTH = 360
-_BORDER_RADIUS = 12
-_H_PADDING = 18
-_V_SPACING = 6
+_PANEL_WIDTH = 368
+_CARD_RADIUS = 8            # Windows 11 card corner radius
+_CONTROL_RADIUS = 4         # Inner controls corner radius
+_CARD_PADDING = 14          # Inside card padding
+_CARD_SPACING = 6           # Gap between cards
+_H_PADDING = 12             # Root layout horizontal margin
+_V_SPACING = 6              # Root layout vertical spacing
 _GRAPH_POINTS = 60          # 60-second rolling window
 _UPDATE_INTERVAL_MS = 1000  # 1-second refresh cycle
+
+
+# ─── DWM Acrylic Backdrop ─────────────────────────────────────────────────────
+
+def _apply_acrylic_backdrop(hwnd):
+    """
+    Apply Windows 11 Acrylic backdrop to the window via DWM API.
+    Falls back gracefully on unsupported systems.
+    """
+    try:
+        # DWMWA_SYSTEMBACKDROP_TYPE = 38
+        # DWMSBT_TRANSIENTWINDOW (Acrylic) = 3
+        backdrop_type = ctypes.c_int(3)
+        result = ctypes.windll.dwmapi.DwmSetWindowAttribute(
+            hwnd,
+            38,
+            ctypes.byref(backdrop_type),
+            ctypes.sizeof(backdrop_type),
+        )
+
+        # Also enable dark mode for the window chrome
+        # DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+        dark_mode = ctypes.c_int(1)
+        ctypes.windll.dwmapi.DwmSetWindowAttribute(
+            hwnd,
+            20,
+            ctypes.byref(dark_mode),
+            ctypes.sizeof(dark_mode),
+        )
+
+        # Extend frame into client area for the Acrylic effect to be visible
+        class MARGINS(ctypes.Structure):
+            _fields_ = [
+                ("cxLeftWidth", ctypes.c_int),
+                ("cxRightWidth", ctypes.c_int),
+                ("cyTopHeight", ctypes.c_int),
+                ("cyBottomHeight", ctypes.c_int),
+            ]
+
+        margins = MARGINS(-1, -1, -1, -1)
+        ctypes.windll.dwmapi.DwmExtendFrameIntoClientArea(
+            hwnd, ctypes.byref(margins)
+        )
+
+        return result == 0  # S_OK
+    except Exception:
+        return False
 
 
 # ─── Taskbar Detection (standalone, no netspeedtray imports) ──────────────────
@@ -200,28 +268,50 @@ class _PingWorker(QThread):
 
 # ─── Helper Widgets ───────────────────────────────────────────────────────────
 
-class _Separator(QFrame):
-    """Thin horizontal line used to visually divide sections."""
+class _Card(QFrame):
+    """
+    Windows 11 Fluent Design card — an elevated surface with rounded corners,
+    subtle border, and a slightly lighter background than the panel base.
+    """
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFrameShape(QFrame.Shape.HLine)
-        self.setFrameShadow(QFrame.Shadow.Plain)
-        self.setFixedHeight(1)
-        self.setStyleSheet(f"background: {_COLORS['separator']}; border: none;")
+        self.setObjectName("fluent_card")
+        self.setStyleSheet(f"""
+            QFrame#fluent_card {{
+                background-color: {_COLORS['bg_card']};
+                border: 1px solid {_COLORS['card_border']};
+                border-radius: {_CARD_RADIUS}px;
+            }}
+        """)
+        self._layout = QVBoxLayout(self)
+        self._layout.setContentsMargins(
+            _CARD_PADDING, _CARD_PADDING - 2,
+            _CARD_PADDING, _CARD_PADDING - 2
+        )
+        self._layout.setSpacing(6)
+
+    def card_layout(self) -> QVBoxLayout:
+        """Return the card's internal layout for adding content."""
+        return self._layout
 
 
 class _SectionTitle(QLabel):
-    """Small uppercase section heading label."""
+    """Fluent-style section heading — 11px semibold, secondary color."""
+
+    _counter = 0  # Class-level counter for unique object names
 
     def __init__(self, text: str, parent=None):
-        super().__init__(text.upper(), parent)
+        super().__init__(text, parent)
+        _SectionTitle._counter += 1
+        self.setObjectName(f"section_title_{_SectionTitle._counter}")
         self.setStyleSheet(
-            f"color: {_COLORS['text_tertiary']}; "
+            f"color: {_COLORS['text_secondary']}; "
             f"font-family: {_FONT_FAMILY}; "
-            f"font-size: 10px; "
+            f"font-size: 11px; "
             f"font-weight: 600; "
-            f"letter-spacing: 1px; "
+            f"letter-spacing: 0.5px; "
+            f"background: transparent; "
             f"padding: 0px; margin: 0px;"
         )
 
@@ -230,13 +320,13 @@ class _SectionTitle(QLabel):
 
 class AnalyticsDashboard(QWidget):
     """
-    Frameless floating analytics panel inspired by macOS menu-bar popovers.
+    Windows 11 Fluent Design floating analytics panel.
 
-    Displays five vertically-stacked sections with real-time data:
-        A. Current upload/download speeds
-        B. 60-second rolling usage history area chart
-        C. Connection details grid (totals, status, latency, jitter)
-        D. Interface & address information
+    Displays card-based sections with real-time data:
+        A. 60-second rolling usage history area chart
+        B. Connection details grid (totals, status, latency, jitter)
+        C. Interface & address information
+        D. System resources (CPU, RAM)
         E. Top network processes
     """
 
@@ -253,14 +343,16 @@ class AnalyticsDashboard(QWidget):
             | Qt.WindowType.Tool
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
         self.setFixedWidth(_PANEL_WIDTH)
+        # No maximum height — let adjustSize() in show_anchored() size naturally
 
-        # ── Drop shadow ──────────────────────────────────────────────────
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(30)
-        shadow.setOffset(0, 4)
-        shadow.setColor(QColor(0, 0, 0, 120))
-        self.setGraphicsEffect(shadow)
+        # Force the palette window color to transparent so Qt's default grey
+        # background never bleeds outside the rounded painted area.
+        palette = self.palette()
+        palette.setColor(QPalette.ColorRole.Window, QColor(0, 0, 0, 0))
+        self.setPalette(palette)
+
 
         # ── Data state ───────────────────────────────────────────────────
         self._dl_history = np.zeros(_GRAPH_POINTS)
@@ -269,13 +361,14 @@ class AnalyticsDashboard(QWidget):
         self._current_ul = 0.0
         self._proc_io_prev = {}      # {pid: (read_bytes, write_bytes, timestamp)}
         self._proc_last_refresh = 0  # time.time() of last process refresh
+        self._acrylic_applied = False
 
         # ── Build UI ─────────────────────────────────────────────────────
         self._build_ui()
 
         # ── Slide animation ──────────────────────────────────────────────
         self._slide_anim = QPropertyAnimation(self, b"geometry")
-        self._slide_anim.setDuration(280)
+        self._slide_anim.setDuration(250)
         self._slide_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
 
         # ── Start background workers ─────────────────────────────────────
@@ -313,6 +406,18 @@ class AnalyticsDashboard(QWidget):
         """
         self._speed_worker.stop()
         monitor_thread.counters_ready.connect(self._on_external_counters)
+        monitor_thread.system_stats_ready.connect(self._on_system_stats)
+
+    def _on_system_stats(self, cpu, ram):
+        """Update system resource indicators."""
+        cpu_clamped = max(0, min(100, int(cpu)))
+        ram_clamped = max(0, min(100, int(ram)))
+
+        self._cpu_bar.setValue(cpu_clamped)
+        self._cpu_label.setText(f"{cpu:.0f}%")
+
+        self._ram_bar.setValue(ram_clamped)
+        self._ram_label.setText(f"{ram:.0f}%")
 
     def _on_external_counters(self, counters_dict):
         """Process per-NIC counters from the main app's monitor thread."""
@@ -333,10 +438,10 @@ class AnalyticsDashboard(QWidget):
 
     # ── Public helpers ────────────────────────────────────────────────────
 
-    def show_anchored(self):
+    def show_anchored(self, anchor_rect: QRect = None):
         """
-        Position the panel above the taskbar in the bottom-right corner,
-        then show with a slide-up animation.
+        Position the panel relative to the anchor_rect (usually the taskbar widget),
+        then show with a slide-up animation. Falls back to bottom-right if no anchor is provided.
         """
         self.adjustSize()
 
@@ -351,18 +456,31 @@ class AnalyticsDashboard(QWidget):
         panel_w = self.width()
         panel_h = self.height()
 
-        # Right-align with a small margin from the right edge
-        x = screen_geo.right() - panel_w - 8
-
-        if taskbar_rect:
-            # Position just above the taskbar
-            taskbar_top = taskbar_rect[1]
-            dpi = screen.devicePixelRatio()
-            taskbar_top_logical = int(taskbar_top / dpi) if dpi > 1 else taskbar_top
-            y = taskbar_top_logical - panel_h - 8
+        if anchor_rect:
+            # Center the panel horizontally relative to the anchor_rect
+            x = anchor_rect.center().x() - (panel_w // 2)
+            # Ensure it doesn't go off the screen edges
+            x = max(screen_geo.left() + 8, min(x, screen_geo.right() - panel_w - 8))
+            
+            # Position just above the anchor
+            y = anchor_rect.top() - panel_h - 8
+            
+            # If it goes off the top of the screen (e.g. taskbar at the top), place it below
+            if y < screen_geo.top():
+                y = anchor_rect.bottom() + 8
         else:
-            # Fallback: bottom of available geometry
-            y = screen_geo.bottom() - panel_h - 8
+            # Fallback: Right-align with a small margin from the right edge
+            x = screen_geo.right() - panel_w - 8
+
+            if taskbar_rect:
+                # Position just above the taskbar
+                taskbar_top = taskbar_rect[1]
+                dpi = screen.devicePixelRatio()
+                taskbar_top_logical = int(taskbar_top / dpi) if dpi > 1 else taskbar_top
+                y = taskbar_top_logical - panel_h - 8
+            else:
+                # Fallback: bottom of available geometry
+                y = screen_geo.bottom() - panel_h - 8
 
         # Slide-up animation: start below final position
         start_rect = QRect(x, y + 30, panel_w, panel_h)
@@ -370,6 +488,16 @@ class AnalyticsDashboard(QWidget):
 
         self.setGeometry(start_rect)
         self.show()
+
+        # Apply Acrylic backdrop on first show (needs valid HWND)
+        # Disabled: DWM Acrylic renders a fallback background on transparent pixels, 
+        # causing a grey rectangular bounding box (#545454) outside the rounded corners.
+        # if not self._acrylic_applied:
+        #     try:
+        #         hwnd = int(self.winId())
+        #         self._acrylic_applied = _apply_acrylic_backdrop(hwnd)
+        #     except Exception:
+        #         pass
 
         self._slide_anim.setStartValue(start_rect)
         self._slide_anim.setEndValue(end_rect)
@@ -389,7 +517,7 @@ class AnalyticsDashboard(QWidget):
         end_rect = QRect(current.x(), current.y() + 30, current.width(), current.height())
 
         anim = QPropertyAnimation(self, b"geometry")
-        anim.setDuration(200)
+        anim.setDuration(180)
         anim.setEasingCurve(QEasingCurve.Type.InCubic)
         anim.setStartValue(current)
         anim.setEndValue(end_rect)
@@ -454,24 +582,33 @@ class AnalyticsDashboard(QWidget):
         super().closeEvent(event)
 
     def paintEvent(self, event):
-        """Draw the rounded-rect dark background behind all child widgets."""
+        """
+        Clear the widget to fully transparent first (fixes grey box artifact
+        caused by Qt's offscreen compositing), then paint the dark rounded
+        Fluent background on top.
+        """
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        path = QPainterPath()
-        rect = QRectF(8, 4, self.width() - 16, self.height() - 12)
-        path.addRoundedRect(rect, _BORDER_RADIUS, _BORDER_RADIUS)
+        # Step 1: Erase the entire widget rect to transparent.
+        # This prevents the Qt system from showing a grey bounding box.
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+        painter.fillRect(self.rect(), Qt.GlobalColor.transparent)
 
-        painter.fillPath(path, QColor(_COLORS["bg"]))
+        # Step 2: Paint the Fluent dark background in the rounded rect shape.
+        # Note: Disabled per user request so the base panel is perfectly transparent,
+        # leaving only the individual floating cards visible.
+        # painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+        # path = QPainterPath()
+        # rect = QRectF(6, 2, self.width() - 12, self.height() - 8)
+        # path.addRoundedRect(rect, _CARD_RADIUS, _CARD_RADIUS)
+        # painter.fillPath(path, QColor(_COLORS["bg"]))
+
         painter.end()
 
     def resizeEvent(self, event):
-        """Update the widget mask so clicks outside the rounded rect pass through."""
+        """No mask needed — WA_TranslucentBackground + CompositionMode_Clear handles clipping."""
         super().resizeEvent(event)
-        path = QPainterPath()
-        rect = QRectF(8, 4, self.width() - 16, self.height() - 12)
-        path.addRoundedRect(rect, _BORDER_RADIUS, _BORDER_RADIUS)
-        self.setMask(QRegion(path.toFillPolygon().toPolygon()))
 
     # ── Data callbacks ────────────────────────────────────────────────────
 
@@ -485,12 +622,6 @@ class AnalyticsDashboard(QWidget):
         self._dl_history[-1] = dl_kbps
         self._ul_history = np.roll(self._ul_history, -1)
         self._ul_history[-1] = ul_kbps
-
-        # Update header — always in Mbps
-        dl_mbps = dl_kbps * 8 / 1000
-        ul_mbps = ul_kbps * 8 / 1000
-        self._dl_value_label.setText(f"{dl_mbps:.2f} Mbps")
-        self._ul_value_label.setText(f"{ul_mbps:.2f} Mbps")
 
         # Update graph
         x = np.arange(_GRAPH_POINTS)
@@ -569,9 +700,6 @@ class AnalyticsDashboard(QWidget):
                 name_io[name] = name_io.get(name, 0.0) + io_kbps
 
             # 4. Proportional distribution of actual network speed
-            #    io_counters() includes disk I/O, so raw values are inflated.
-            #    We distribute the real total network speed proportionally
-            #    based on each process's I/O share.
             total_net_speed = self._current_dl + self._current_ul  # Real network KB/s
             total_io = sum(name_io.values())
 
@@ -594,11 +722,10 @@ class AnalyticsDashboard(QWidget):
                     self._proc_name_labels[i].setStyleSheet(
                         self._label_style(_COLORS["text_primary"], 12)
                     )
-                    # Convert KB/s to Mbps: kbps * 8 / 1000
-                    speed_mbps = (speed * 8) / 1000
-                    self._proc_speed_labels[i].setText(f"{speed_mbps:.2f} Mbps")
+                    # Format dynamically
+                    self._proc_speed_labels[i].setText(self._format_speed(speed))
                     self._proc_dot_labels[i].setStyleSheet(
-                        f"color: {_COLORS['accent']}; font-size: 8px; padding-top: 2px;"
+                        f"color: {_COLORS['accent']}; font-size: 8px; padding-top: 2px; background: transparent;"
                     )
                 else:
                     self._proc_name_labels[i].setText("—")
@@ -607,7 +734,7 @@ class AnalyticsDashboard(QWidget):
                     )
                     self._proc_speed_labels[i].setText("")
                     self._proc_dot_labels[i].setStyleSheet(
-                        f"color: {_COLORS['text_tertiary']}; font-size: 8px; padding-top: 2px;"
+                        f"color: {_COLORS['text_tertiary']}; font-size: 8px; padding-top: 2px; background: transparent;"
                     )
 
         except Exception:
@@ -649,11 +776,12 @@ class AnalyticsDashboard(QWidget):
 
     @staticmethod
     def _format_speed(kbps: float) -> str:
-        """Format speed with auto-scaling: KB/s below 1 Mbps, Mbps at/above."""
-        mbps = kbps * 8 / 1000
+        """Format speed with auto-scaling: Kbps below 1 Mbps, Mbps at/above."""
+        kbps_bits = kbps * 8
+        mbps = kbps_bits / 1000
         if mbps >= 1.0:
             return f"{mbps:.2f} Mbps"
-        return f"{kbps:.1f} KB/s"
+        return f"{kbps_bits:.0f} Kbps"
 
     @staticmethod
     def _format_bytes(total_bytes: float) -> str:
@@ -679,58 +807,125 @@ class AnalyticsDashboard(QWidget):
     # ── Internal UI construction ──────────────────────────────────────────
 
     def _build_ui(self):
-        """Assemble all five sections inside a vertical layout."""
+        """Assemble all sections inside a card-based vertical layout."""
         root = QVBoxLayout(self)
-        root.setContentsMargins(_H_PADDING + 8, 20, _H_PADDING + 8, 14)
-        root.setSpacing(_V_SPACING)
+        root.setContentsMargins(_H_PADDING + 8, 14, _H_PADDING + 8, 12)
+        root.setSpacing(_CARD_SPACING)
+        # A. Graph card
+        graph_card = _Card()
+        graph_card.card_layout().setContentsMargins(6, 8, 6, 6)
+        graph_card.card_layout().setSpacing(4)
 
-        root.addLayout(self._build_header())
-        root.addWidget(_Separator())
-        root.addWidget(self._build_graph())
+        # Graph title
+        graph_card.card_layout().addWidget(_SectionTitle("Speed Trends  (60s)"))
+
+        graph_widget = self._build_graph()
+        graph_card.card_layout().addWidget(graph_widget)
+
+        # Graph legend inside card
+        legend_layout = QHBoxLayout()
+        legend_layout.setContentsMargins(4, 0, 4, 0)
+        legend_layout.setSpacing(16)
+        dl_legend = self._make_label("● Download", 10, _COLORS["download"], weight=500)
+        ul_legend = self._make_label("● Upload", 10, _COLORS["upload"], weight=500)
+        ul_legend.setAlignment(Qt.AlignmentFlag.AlignRight)
+        legend_layout.addWidget(dl_legend)
+        legend_layout.addStretch()
+        legend_layout.addWidget(ul_legend)
+        graph_card.card_layout().addLayout(legend_layout)
+
+        root.addWidget(graph_card)
+
+        # Graph button (full-width, outside card)
         root.addWidget(self._build_graph_button())
-        root.addWidget(_Separator())
-        root.addLayout(self._build_details_grid())
-        root.addWidget(_Separator())
-        root.addLayout(self._build_interface_grid())
-        root.addWidget(_Separator())
-        root.addLayout(self._build_processes())
 
-    # ── Section A: Speed Header ───────────────────────────────────────────
+        # B. Connection Details card
+        details_card = _Card()
+        self._build_details_into(details_card.card_layout())
+        root.addWidget(details_card)
 
-    def _build_header(self):
-        layout = QHBoxLayout()
-        layout.setContentsMargins(8, 2, 0, 4)
-        layout.setSpacing(8)
+        # C. Interface card
+        iface_card = _Card()
+        self._build_interface_into(iface_card.card_layout())
+        root.addWidget(iface_card)
 
-        # Download (left) — takes equal share of width
-        dl_block = QVBoxLayout()
-        dl_block.setSpacing(2)
-        dl_label = self._make_label("●  Download", 10, _COLORS["download"], weight=500)
-        self._dl_value_label = self._make_label("0.0 KB/s", 20, _COLORS["download"], weight=700)
-        self._dl_value_label.setMinimumWidth(140)
-        dl_block.addWidget(dl_label)
-        dl_block.addWidget(self._dl_value_label)
+        # D. System Resources card
+        resources_card = _Card()
+        self._build_resources_into(resources_card.card_layout())
+        root.addWidget(resources_card)
 
-        # Upload (right) — takes equal share of width
-        ul_block = QVBoxLayout()
-        ul_block.setSpacing(2)
-        ul_label = self._make_label("●  Upload", 10, _COLORS["upload"], weight=500)
-        ul_label.setAlignment(Qt.AlignmentFlag.AlignRight)
-        self._ul_value_label = self._make_label("0.0 KB/s", 20, _COLORS["upload"], weight=700)
-        self._ul_value_label.setMinimumWidth(140)
-        self._ul_value_label.setAlignment(Qt.AlignmentFlag.AlignRight)
-        ul_block.addWidget(ul_label)
-        ul_block.addWidget(self._ul_value_label)
+        # E. Active Processes card
+        procs_card = _Card()
+        self._build_processes_into(procs_card.card_layout())
+        root.addWidget(procs_card)
 
-        layout.addLayout(dl_block, 1)   # stretch factor 1
-        layout.addLayout(ul_block, 1)   # stretch factor 1
-        return layout
+    # ── Section 0: Speed Header ───────────────────────────────────────────
 
-    # ── Section B: Usage History Graph ────────────────────────────────────
+    def _build_speed_header_into(self, parent_layout: QVBoxLayout):
+        """
+        Build the top speed header card showing large live DL/UL values.
+        Two columns: Download (teal) on the left, Upload (orange) on the right.
+        """
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(0)
+
+        # ── Download column ──────────────────────────────────────────
+        dl_col = QVBoxLayout()
+        dl_col.setSpacing(2)
+
+        dl_tag_row = QHBoxLayout()
+        dl_tag_row.setSpacing(5)
+        dl_dot = self._make_label("●", 9, _COLORS["download"])
+        dl_tag = self._make_label("Download", 11, _COLORS["text_secondary"], weight=500)
+        dl_tag_row.addWidget(dl_dot)
+        dl_tag_row.addWidget(dl_tag)
+        dl_tag_row.addStretch()
+
+        self._header_dl_label = self._make_label("0 Kbps", 20, _COLORS["download"], weight=700)
+        self._header_dl_label.setMinimumWidth(140)
+
+        dl_col.addLayout(dl_tag_row)
+        dl_col.addWidget(self._header_dl_label)
+
+        # ── Vertical divider ─────────────────────────────────────────
+        divider = QFrame()
+        divider.setFrameShape(QFrame.Shape.VLine)
+        divider.setFixedWidth(1)
+        divider.setStyleSheet(f"background: {_COLORS['separator']}; border: none;")
+
+        # ── Upload column ────────────────────────────────────────────
+        ul_col = QVBoxLayout()
+        ul_col.setSpacing(2)
+
+        ul_tag_row = QHBoxLayout()
+        ul_tag_row.setSpacing(5)
+        ul_tag_row.addStretch()
+        ul_tag = self._make_label("Upload", 11, _COLORS["text_secondary"], weight=500)
+        ul_dot = self._make_label("●", 9, _COLORS["upload"])
+        ul_tag_row.addWidget(ul_tag)
+        ul_tag_row.addWidget(ul_dot)
+
+        self._header_ul_label = self._make_label("0 Kbps", 20, _COLORS["upload"], weight=700)
+        self._header_ul_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self._header_ul_label.setMinimumWidth(140)
+
+        ul_col.addLayout(ul_tag_row)
+        ul_col.addWidget(self._header_ul_label)
+
+        row.addLayout(dl_col, 1)
+        row.addSpacing(10)
+        row.addWidget(divider)
+        row.addSpacing(10)
+        row.addLayout(ul_col, 1)
+
+        parent_layout.addLayout(row)
+
+    # ── Section A: Usage History Graph ────────────────────────────────────
 
     def _build_graph(self):
         graph = pg.PlotWidget()
-        graph.setFixedHeight(130)
+        graph.setFixedHeight(120)
         graph.setBackground("transparent")
 
         # Hide all chrome
@@ -743,14 +938,14 @@ class AnalyticsDashboard(QWidget):
 
         x = np.arange(_GRAPH_POINTS)
 
-        # Download area (blue)
+        # Download area (Fluent teal-blue)
         dl_pen = pg.mkPen(color=_COLORS["download"], width=2)
-        dl_brush = pg.mkBrush(0, 122, 255, 50)
+        dl_brush = pg.mkBrush(96, 205, 255, 35)
         self._dl_curve = graph.plot(x, self._dl_history, pen=dl_pen, fillLevel=0, fillBrush=dl_brush)
 
-        # Upload area (red, drawn on top)
+        # Upload area (Fluent orange, drawn on top)
         ul_pen = pg.mkPen(color=_COLORS["upload"], width=2)
-        ul_brush = pg.mkBrush(255, 59, 48, 40)
+        ul_brush = pg.mkBrush(247, 99, 12, 28)
         self._ul_curve = graph.plot(x, self._ul_history, pen=ul_pen, fillLevel=0, fillBrush=ul_brush)
 
         self._graph_widget = graph
@@ -759,23 +954,24 @@ class AnalyticsDashboard(QWidget):
     # ── Graph Button ──────────────────────────────────────────────────────
 
     def _build_graph_button(self):
-        """Styled button that emits open_graph_requested to open the full GraphWindow."""
+        """Fluent-styled button that opens the full GraphWindow."""
         btn = QPushButton("📊  Detailed Graph")
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setFixedHeight(32)
+        btn.setFixedHeight(34)
         btn.setStyleSheet(f"""
             QPushButton {{
-                background: {_COLORS['bg_section']};
+                background: {_COLORS['bg_card']};
                 color: {_COLORS['accent']};
-                border: 1px solid {_COLORS['separator']};
-                border-radius: 6px;
+                border: 1px solid {_COLORS['card_border']};
+                border-radius: {_CONTROL_RADIUS}px;
                 font-family: {_FONT_FAMILY};
                 font-size: 12px;
                 font-weight: 600;
-                padding: 0 12px;
+                padding: 0 16px;
             }}
             QPushButton:hover {{
-                background: {_COLORS['separator']};
+                background: {_COLORS['bg_card_hover']};
+                border: 1px solid {_COLORS['accent']};
             }}
             QPushButton:pressed {{
                 background: {_COLORS['bg']};
@@ -789,16 +985,14 @@ class AnalyticsDashboard(QWidget):
         self.open_graph_requested.emit()
         self.hide_animated()
 
-    # ── Section C: Details Grid ───────────────────────────────────────────
+    # ── Section B: Connection Details ─────────────────────────────────────
 
-    def _build_details_grid(self):
-        outer = QVBoxLayout()
-        outer.setSpacing(4)
-        outer.addWidget(_SectionTitle("Connection Details"))
+    def _build_details_into(self, parent_layout: QVBoxLayout):
+        parent_layout.addWidget(_SectionTitle("Connection Details"))
 
         grid = QGridLayout()
         grid.setHorizontalSpacing(12)
-        grid.setVerticalSpacing(6)
+        grid.setVerticalSpacing(5)
 
         # Row 0: Total Download
         grid.addWidget(self._make_label("Total Download", 12, _COLORS["text_secondary"]), 0, 0)
@@ -830,19 +1024,16 @@ class AnalyticsDashboard(QWidget):
         self._jitter_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         grid.addWidget(self._jitter_label, 4, 1)
 
-        outer.addLayout(grid)
-        return outer
+        parent_layout.addLayout(grid)
 
-    # ── Section D: Interface & Address ────────────────────────────────────
+    # ── Section C: Interface & Address ────────────────────────────────────
 
-    def _build_interface_grid(self):
-        outer = QVBoxLayout()
-        outer.setSpacing(4)
-        outer.addWidget(_SectionTitle("Interface"))
+    def _build_interface_into(self, parent_layout: QVBoxLayout):
+        parent_layout.addWidget(_SectionTitle("Interface"))
 
         grid = QGridLayout()
         grid.setHorizontalSpacing(12)
-        grid.setVerticalSpacing(6)
+        grid.setVerticalSpacing(5)
 
         grid.addWidget(self._make_label("Interface", 12, _COLORS["text_secondary"]), 0, 0)
         self._iface_name_label = self._make_label("Detecting...", 12, _COLORS["text_primary"], weight=600)
@@ -859,15 +1050,69 @@ class AnalyticsDashboard(QWidget):
         self._ip_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         grid.addWidget(self._ip_label, 2, 1)
 
-        outer.addLayout(grid)
-        return outer
+        parent_layout.addLayout(grid)
+
+    # ── Section D: System Resources ───────────────────────────────────────
+
+    def _build_resources_into(self, parent_layout: QVBoxLayout):
+        parent_layout.addWidget(_SectionTitle("System Resources"))
+
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(12)
+        grid.setVerticalSpacing(6)
+
+        # CPU Row — Fluent teal-blue accent
+        grid.addWidget(self._make_label("CPU", 12, _COLORS["text_secondary"]), 0, 0)
+        self._cpu_bar = QProgressBar()
+        self._cpu_bar.setFixedHeight(6)
+        self._cpu_bar.setTextVisible(False)
+        self._cpu_bar.setStyleSheet(f"""
+            QProgressBar {{
+                background-color: {_COLORS['separator']};
+                border: none;
+                border-radius: 3px;
+            }}
+            QProgressBar::chunk {{
+                background-color: {_COLORS['accent']};
+                border-radius: 3px;
+            }}
+        """)
+        grid.addWidget(self._cpu_bar, 0, 1)
+        self._cpu_label = self._make_label("0%", 12, _COLORS["text_primary"], weight=600)
+        self._cpu_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self._cpu_label.setMinimumWidth(36)
+        grid.addWidget(self._cpu_label, 0, 2)
+
+        # RAM Row — Fluent orange accent
+        grid.addWidget(self._make_label("RAM", 12, _COLORS["text_secondary"]), 1, 0)
+        self._ram_bar = QProgressBar()
+        self._ram_bar.setFixedHeight(6)
+        self._ram_bar.setTextVisible(False)
+        self._ram_bar.setStyleSheet(f"""
+            QProgressBar {{
+                background-color: {_COLORS['separator']};
+                border: none;
+                border-radius: 3px;
+            }}
+            QProgressBar::chunk {{
+                background-color: {_COLORS['upload']};
+                border-radius: 3px;
+            }}
+        """)
+        grid.addWidget(self._ram_bar, 1, 1)
+        self._ram_label = self._make_label("0%", 12, _COLORS["text_primary"], weight=600)
+        self._ram_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self._ram_label.setMinimumWidth(36)
+        grid.addWidget(self._ram_label, 1, 2)
+
+        grid.setColumnStretch(1, 1)
+
+        parent_layout.addLayout(grid)
 
     # ── Section E: Top Processes ──────────────────────────────────────────
 
-    def _build_processes(self):
-        outer = QVBoxLayout()
-        outer.setSpacing(4)
-        outer.addWidget(_SectionTitle("Active Processes"))
+    def _build_processes_into(self, parent_layout: QVBoxLayout):
+        parent_layout.addWidget(_SectionTitle("Active Processes"))
 
         self._proc_dot_labels = []
         self._proc_name_labels = []
@@ -875,7 +1120,7 @@ class AnalyticsDashboard(QWidget):
 
         for i in range(5):
             row = QHBoxLayout()
-            row.setContentsMargins(0, 2, 0, 2)
+            row.setContentsMargins(0, 1, 0, 1)
 
             dot = QLabel("●")
             dot.setFixedWidth(16)
@@ -883,7 +1128,8 @@ class AnalyticsDashboard(QWidget):
             dot.setStyleSheet(
                 f"color: {_COLORS['accent']}; "
                 f"font-size: 8px; "
-                f"padding-top: 2px;"
+                f"padding-top: 2px; "
+                f"background: transparent;"
             )
 
             proc_name = self._make_label("—", 12, _COLORS["text_tertiary"])
@@ -900,9 +1146,7 @@ class AnalyticsDashboard(QWidget):
             row.addWidget(proc_name)
             row.addStretch()
             row.addWidget(proc_speed)
-            outer.addLayout(row)
-
-        return outer
+            parent_layout.addLayout(row)
 
     # ── Label factory ─────────────────────────────────────────────────────
 
@@ -913,7 +1157,7 @@ class AnalyticsDashboard(QWidget):
         color: str,
         weight: int = 400,
     ) -> QLabel:
-        """Create a styled QLabel with the dashboard font family."""
+        """Create a styled QLabel with the Fluent font family."""
         lbl = QLabel(text)
         lbl.setStyleSheet(
             f"color: {color}; "
@@ -921,7 +1165,7 @@ class AnalyticsDashboard(QWidget):
             f"font-size: {size}px; "
             f"font-weight: {weight}; "
             f"background: transparent; "
-            f"padding: 0px 2px; margin: 0px;"
+            f"padding: 0px 4px; margin: 0px;"
         )
         return lbl
 

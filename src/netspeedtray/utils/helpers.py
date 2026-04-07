@@ -233,7 +233,7 @@ def format_speed(
     speed_value = current_speed if is_bytes else current_speed * network_consts.BITS_PER_BYTE
 
     # Determine scale and unit
-    if current_speed < network_consts.MINIMUM_DISPLAY_SPEED:
+    if current_speed <= network_consts.MINIMUM_DISPLAY_SPEED:
         val = 0.0
         unit = labels[2] if force_mega_unit else labels[1]
     elif force_mega_unit:
@@ -246,15 +246,14 @@ def format_speed(
         elif speed_value >= mega_div:
             val = speed_value / mega_div
             unit = labels[2]
-        elif speed_value >= kilo_div:
+        else:
             val = speed_value / kilo_div
             unit = labels[1]
-        else:
-            val = speed_value
-            unit = labels[0]
 
     # Format numeric part
-    if unit == labels[0]:
+    if val == 0.0:
+        formatted_val = "0"
+    elif unit == labels[0]:
         formatted_val = f"{val:.0f}"
     else:
         formatted_val = f"{val:.{decimal_places}f}"

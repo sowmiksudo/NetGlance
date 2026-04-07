@@ -51,6 +51,7 @@ class RenderConfig:
     arrow_font_family: str = constants.config.defaults.DEFAULT_FONT_FAMILY
     arrow_font_size: int = 9
     arrow_font_weight: int = constants.fonts.WEIGHT_DEMIBOLD
+    show_system_resources: bool = constants.config.defaults.DEFAULT_SHOW_SYSTEM_RESOURCES
 
 
     @classmethod
@@ -95,7 +96,7 @@ class RenderConfig:
                 background_color=str(config.get('background_color', constants.config.defaults.DEFAULT_BACKGROUND_COLOR)),
                 background_opacity=max(0.0, min(1.0, float(config.get('background_opacity', constants.config.defaults.DEFAULT_BACKGROUND_OPACITY)) / 100.0)),
                 graph_opacity=max(0.0, min(1.0, opacity)),
-                speed_display_mode=str(config.get('speed_display_mode', constants.config.defaults.DEFAULT_SPEED_DISPLAY_MODE)),
+                speed_display_mode="auto", # Force dynamic units for taskbar widget
                 decimal_places=int(config.get('decimal_places', constants.config.defaults.DEFAULT_DECIMAL_PLACES)),
                 text_alignment=str(config.get('text_alignment', constants.config.defaults.DEFAULT_TEXT_ALIGNMENT)),
                 force_decimals=bool(config.get('force_decimals', constants.config.defaults.DEFAULT_FORCE_DECIMALS)),
@@ -108,7 +109,8 @@ class RenderConfig:
                 use_separate_arrow_font=bool(config.get('use_separate_arrow_font', False)),
                 arrow_font_family=str(config.get('arrow_font_family', constants.config.defaults.DEFAULT_FONT_FAMILY)),
                 arrow_font_size=int(config.get('arrow_font_size', constants.config.defaults.DEFAULT_FONT_SIZE)),
-                arrow_font_weight=int(config.get('arrow_font_weight', constants.fonts.WEIGHT_DEMIBOLD))
+                arrow_font_weight=int(config.get('arrow_font_weight', constants.fonts.WEIGHT_DEMIBOLD)),
+                show_system_resources=bool(config.get('show_system_resources', constants.config.defaults.DEFAULT_SHOW_SYSTEM_RESOURCES))
             )
         except Exception as e:
             logger.error("Failed to create RenderConfig from dict: %s", e, exc_info=True)
@@ -192,7 +194,7 @@ class WidgetRenderer:
         painter.restore()
 
 
-    def draw_network_speeds(self, painter: QPainter, upload: float, download: float, width: int, height: int, config: RenderConfig, layout_mode: str = 'vertical') -> None:
+    def draw_network_speeds(self, painter: QPainter, upload: float, download: float, cpu_usage: float, ram_usage: float, width: int, height: int, config: RenderConfig, layout_mode: str = 'vertical') -> None:
         """Draws upload/download speeds, adapting to vertical or horizontal layouts."""
         try:
             force_mega_unit = config.speed_display_mode == "always_mbps"
@@ -202,9 +204,9 @@ class WidgetRenderer:
             swap_order = config.swap_upload_download
             
             if layout_mode == 'horizontal':
-                self._draw_horizontal_layout(painter, upload, download, width, height, config, force_mega_unit, decimal_places, force_decimals, unit_type, swap_order, config.short_unit_labels)
+                self._draw_horizontal_layout(painter, upload, download, cpu_usage, ram_usage, width, height, config, force_mega_unit, decimal_places, force_decimals, unit_type, swap_order, config.short_unit_labels)
             else: # Default to vertical
-                self._draw_vertical_layout(painter, upload, download, width, height, config, force_mega_unit, decimal_places, force_decimals, unit_type, swap_order, config.short_unit_labels)
+                self._draw_vertical_layout(painter, upload, download, cpu_usage, ram_usage, width, height, config, force_mega_unit, decimal_places, force_decimals, unit_type, swap_order, config.short_unit_labels)
 
         except Exception as e:
             self.logger.error("Failed to draw speeds: %s", e, exc_info=True)
@@ -223,7 +225,7 @@ class WidgetRenderer:
     # `multi_replace_file_content` is better here.
     pass
 
-    def _draw_vertical_layout(self, painter: QPainter, upload: float, download: float, width: int, height: int, config: RenderConfig, force_mega_unit: bool, decimal_places: int, force_decimals: bool, unit_type: str, swap_order: bool, short_labels: bool) -> None:
+    def _draw_vertical_layout(self, painter: QPainter, upload: float, download: float, cpu_usage: float, ram_usage: float, width: int, height: int, config: RenderConfig, force_mega_unit: bool, decimal_places: int, force_decimals: bool, unit_type: str, swap_order: bool, short_labels: bool) -> None:
         """
         Draws the standard two-line vertical layout.
         Includes INTELLIGENT SCALING to fit narrow/vertical taskbars (#99).
@@ -231,11 +233,17 @@ class WidgetRenderer:
         # --- Preparation & Helpers ---
         # Helper to get current metrics
         def get_width_metrics(current_metrics, current_arrow_metrics):
-            arrow_w = 0 if hide_arrows else current_arrow_metrics.horizontalAdvance(self.i18n.UPLOAD_ARROW)
+            if hide_arrows:
+                arrow_w = 0
+            else:
+                w1 = current_arrow_metrics.horizontalAdvance(self.i18n.UPLOAD_ARROW)
+                w2 = current_arrow_metrics.horizontalAdvance(self.i18n.DOWNLOAD_ARROW)
+                arrow_w = max(w1, w2)
             arrow_g = 0 if hide_arrows else constants.renderer.ARROW_NUMBER_GAP
             
             ref_v = get_reference_value_string(force_mega_unit, decimal_places, unit_type=unit_type)
-            max_num_w = current_metrics.horizontalAdvance(ref_v)
+            # Add padding to avoid first character trimming
+            max_num_w = current_metrics.horizontalAdvance(ref_v) + 4
             
             unit_g = 0 if hide_unit else constants.renderer.VALUE_UNIT_GAP
             if hide_unit:
@@ -244,8 +252,12 @@ class WidgetRenderer:
                 p_units = get_unit_labels_for_type(self.i18n, unit_type, short_labels)
                 max_u_w = max(current_metrics.horizontalAdvance(u) for u in p_units)
                 
-            total_w = arrow_w + arrow_g + max_num_w + unit_g + max_u_w
-            return total_w, arrow_w, arrow_g, max_num_w, unit_g, max_u_w
+            sys_w = 0
+            if config.show_system_resources:
+                sys_w = current_metrics.horizontalAdvance(" C:100% ")
+                
+            total_w = arrow_w + arrow_g + max_num_w + unit_g + max_u_w + sys_w
+            return total_w, arrow_w, arrow_g, max_num_w, unit_g, max_u_w, sys_w
 
         from netspeedtray.utils.helpers import get_reference_value_string, get_unit_labels_for_type
 
@@ -273,7 +285,7 @@ class WidgetRenderer:
         metrics = QFontMetrics(draw_font)
         arrow_metrics = QFontMetrics(draw_arrow_font)
         
-        content_width, arrow_width, arrow_gap, max_number_width, unit_gap, max_unit_width = get_width_metrics(metrics, arrow_metrics)
+        content_width, arrow_width, arrow_gap, max_number_width, unit_gap, max_unit_width, sys_width = get_width_metrics(metrics, arrow_metrics)
         
         # Scaling Loop
         while content_width > safe_width and current_size > min_font_size:
@@ -291,7 +303,7 @@ class WidgetRenderer:
                 draw_arrow_font.setPointSize(current_size)
                 
             arrow_metrics = QFontMetrics(draw_arrow_font)
-            content_width, arrow_width, arrow_gap, max_number_width, unit_gap, max_unit_width = get_width_metrics(metrics, arrow_metrics)
+            content_width, arrow_width, arrow_gap, max_number_width, unit_gap, max_unit_width, sys_width = get_width_metrics(metrics, arrow_metrics)
 
         # --- Draw Calculation ---
         line_height = metrics.height()
@@ -309,6 +321,7 @@ class WidgetRenderer:
 
         number_starting_x_base = margin + arrow_width + arrow_gap
         unit_x = number_starting_x_base + max_number_width + unit_gap
+        sys_x = unit_x + max_unit_width + 4
 
         def draw_line(y_pos: int, arrow_char: str, val_str: str, unit_str: str, color: QColor):
             painter.setPen(color)
@@ -332,11 +345,31 @@ class WidgetRenderer:
             draw_line(top_y, self.i18n.UPLOAD_ARROW, up_val_str, up_unit, self._get_speed_color(upload, config))
             draw_line(bottom_y, self.i18n.DOWNLOAD_ARROW, down_val_str, down_unit, self._get_speed_color(download, config))
         
+        if config.show_system_resources:
+            painter.setPen(self.default_color)
+            painter.setFont(draw_font)
+            
+            c_lbl = "C:"
+            r_lbl = "R:"
+            cpu_val = f"{int(cpu_usage)}%"
+            ram_val = f"{int(ram_usage)}%"
+            
+            # Draw labels left-aligned
+            painter.drawText(int(sys_x), int(top_y), c_lbl)
+            painter.drawText(int(sys_x), int(bottom_y), r_lbl)
+            
+            # Draw values right-aligned
+            cpu_x = sys_x + sys_width - metrics.horizontalAdvance(cpu_val)
+            ram_x = sys_x + sys_width - metrics.horizontalAdvance(ram_val)
+            
+            painter.drawText(int(cpu_x), int(top_y), cpu_val)
+            painter.drawText(int(ram_x), int(bottom_y), ram_val)
+
         self._last_text_rect = QRect(margin, int(top_y - ascent), int(content_width), int(total_text_height))
 
 
 
-    def _draw_horizontal_layout(self, painter: QPainter, upload: float, download: float, width: int, height: int, config: RenderConfig, force_mega_unit: bool, decimal_places: int, force_decimals: bool, unit_type: str, swap_order: bool, short_labels: bool) -> None:
+    def _draw_horizontal_layout(self, painter: QPainter, upload: float, download: float, cpu_usage: float, ram_usage: float, width: int, height: int, config: RenderConfig, force_mega_unit: bool, decimal_places: int, force_decimals: bool, unit_type: str, swap_order: bool, short_labels: bool) -> None:
         """Draws the compact single-line horizontal layout."""
         # Get split value/unit pairs
         upload_pair, download_pair = self._format_speed_texts(upload, download, force_mega_unit, decimal_places, force_decimals, unit_type, short_labels=short_labels, full_string=False)
@@ -393,7 +426,13 @@ class WidgetRenderer:
         sep = constants.layout.HORIZONTAL_LAYOUT_SEPARATOR
         sep_width = self.metrics.horizontalAdvance(sep)
         
-        total_width = up_width + sep_width + down_width
+        sys_str = ""
+        sys_width = 0
+        if config.show_system_resources:
+            sys_str = f" | C:{int(cpu_usage)}% R:{int(ram_usage)}%"
+            sys_width = self.metrics.horizontalAdvance(sys_str)
+        
+        total_width = up_width + sep_width + down_width + sys_width
         start_x = self._calculate_margin(width, total_width, config.text_alignment)
         
         painter.setFont(self.font) # Default starting font
@@ -402,12 +441,16 @@ class WidgetRenderer:
             next_x = draw_part_h(start_x, self.i18n.DOWNLOAD_ARROW, down_val, down_unit, self._get_speed_color(download, config))
             painter.setPen(self.default_color)
             painter.drawText(next_x, y_pos, sep)
-            draw_part_h(next_x + sep_width, self.i18n.UPLOAD_ARROW, up_val, up_unit, self._get_speed_color(upload, config))
+            final_x = draw_part_h(next_x + sep_width, self.i18n.UPLOAD_ARROW, up_val, up_unit, self._get_speed_color(upload, config))
         else:
             next_x = draw_part_h(start_x, self.i18n.UPLOAD_ARROW, up_val, up_unit, self._get_speed_color(upload, config))
             painter.setPen(self.default_color)
             painter.drawText(next_x, y_pos, sep)
-            draw_part_h(next_x + sep_width, self.i18n.DOWNLOAD_ARROW, down_val, down_unit, self._get_speed_color(download, config))
+            final_x = draw_part_h(next_x + sep_width, self.i18n.DOWNLOAD_ARROW, down_val, down_unit, self._get_speed_color(download, config))
+            
+        if config.show_system_resources:
+            painter.setPen(self.default_color)
+            painter.drawText(final_x, y_pos, sys_str)
             
         self._last_text_rect = QRect(start_x, int(y_pos - self.metrics.ascent()), int(total_width), self.metrics.height())
 

@@ -45,6 +45,7 @@ from netspeedtray.views.settings.pages.interfaces import InterfacesPage
 from netspeedtray.views.settings.pages.general import GeneralPage
 from netspeedtray.views.settings.pages.appearance import AppearancePage
 from netspeedtray.views.settings.pages.colors import ColorsPage
+from netspeedtray.views.settings.pages.about import AboutPage
 from netspeedtray.constants.update_mode import UpdateMode
 
 
@@ -195,7 +196,8 @@ class SettingsDialog(QDialog):
                 self.i18n.MINI_GRAPH_SETTINGS_GROUP, 
                 self.i18n.UNITS_GROUP,
                 self.i18n.NETWORK_INTERFACES_GROUP, 
-                self.i18n.TROUBLESHOOTING_GROUP
+                self.i18n.TROUBLESHOOTING_GROUP,
+                "About"
             ])
             self.sidebar.setCurrentRow(0)
             sidebar_layout.addWidget(self.sidebar)
@@ -237,6 +239,7 @@ class SettingsDialog(QDialog):
                 self._schedule_settings_update
             )
             self.troubleshooting_page = TroubleshootingPage(self.i18n, self.export_error_log)
+            self.about_page = AboutPage(self.i18n, self._schedule_settings_update)
 
             # Add to stack
             self.stack.addWidget(self.general_page)
@@ -246,6 +249,7 @@ class SettingsDialog(QDialog):
             self.stack.addWidget(self.units_page)
             self.stack.addWidget(self.interfaces_page)
             self.stack.addWidget(self.troubleshooting_page)
+            self.stack.addWidget(self.about_page)
 
 
             # --- Bottom Buttons (Save/Cancel) ---

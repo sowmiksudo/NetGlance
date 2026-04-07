@@ -152,7 +152,12 @@ class WidgetLayoutManager:
                     down_width = get_part_width(self.widget.i18n.DOWNLOAD_ARROW, down_val, down_unit)
                     sep_width = self.metrics.horizontalAdvance(constants.layout.HORIZONTAL_LAYOUT_SEPARATOR)
                     
-                    calculated_width = up_width + sep_width + down_width + (margin * 2)
+                    show_system_resources = self.widget.config.get("show_system_resources", constants.config.defaults.DEFAULT_SHOW_SYSTEM_RESOURCES)
+                    sys_width = 0
+                    if show_system_resources:
+                        sys_width = self.metrics.horizontalAdvance(" | C:100% R:100%")
+                    
+                    calculated_width = up_width + sep_width + down_width + sys_width + (margin * 2)
                 else:
                     # Large Horizontal Layout Width Calculation (Vertical Mode)
                     always_mbps = self.widget.config.get("speed_display_mode", constants.config.defaults.DEFAULT_SPEED_DISPLAY_MODE) == "always_mbps"
@@ -169,9 +174,14 @@ class WidgetLayoutManager:
                     arrow_gap = constants.renderer.ARROW_NUMBER_GAP if not hide_arrows else 0
                     unit_gap = constants.renderer.VALUE_UNIT_GAP if not hide_units else 0
 
+                    show_system_resources = self.widget.config.get("show_system_resources", constants.config.defaults.DEFAULT_SHOW_SYSTEM_RESOURCES)
+                    sys_width = 0
+                    if show_system_resources:
+                        sys_width = self.metrics.horizontalAdvance(" C:100% ")
+
                     calculated_width = (margin + arrow_width + arrow_gap +
                                         max_number_width + unit_gap +
-                                        max_unit_width + margin)
+                                        max_unit_width + sys_width + margin)
                 
                 # Height is the TRUE visible taskbar height for horizontal docking (Fixes #104/PR #110)
                 screen = taskbar_info.get_screen()

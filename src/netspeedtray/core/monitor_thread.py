@@ -25,6 +25,7 @@ class NetworkMonitorThread(QThread):
     """
     counters_ready = pyqtSignal(dict)  # Dict[str, psutil._common.snetio]
     error_occurred = pyqtSignal(str)
+    system_stats_ready = pyqtSignal(float, float)  # CPU %, RAM %
 
     def __init__(self, interval: float = 1.0) -> None:
         super().__init__()
@@ -54,6 +55,11 @@ class NetworkMonitorThread(QThread):
                 counters = psutil.net_io_counters(pernic=True)
                 if counters:
                     self.counters_ready.emit(counters)
+                    
+                # Fetch system stats explicitly off the main thread
+                cpu_usage = psutil.cpu_percent(interval=None)
+                ram_usage = psutil.virtual_memory().percent
+                self.system_stats_ready.emit(cpu_usage, ram_usage)
                     
                 # Success - reset circuit breaker
                 if self.consecutive_errors > 0:

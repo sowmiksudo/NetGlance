@@ -80,6 +80,13 @@ class GeneralPage(QWidget):
         options_layout.addWidget(kvf_label, 2, 0, Qt.AlignmentFlag.AlignVCenter)
         options_layout.addWidget(self.keep_visible_fullscreen, 2, 1, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
+        ssr_label = QLabel(self.i18n.SHOW_SYSTEM_RESOURCES_LABEL)
+        self.show_system_resources = Win11Toggle(label_text="")
+        self.show_system_resources.toggled.connect(self.on_change)
+
+        options_layout.addWidget(ssr_label, 3, 0, Qt.AlignmentFlag.AlignVCenter)
+        options_layout.addWidget(self.show_system_resources, 3, 1, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+
         options_layout.setColumnStretch(0, 0)
         options_layout.setColumnStretch(1, 1)
         layout.addWidget(options_group)
@@ -105,6 +112,7 @@ class GeneralPage(QWidget):
         self.start_with_windows.setChecked(is_startup_enabled)
         self.free_move.setChecked(config.get("free_move", False))
         self.keep_visible_fullscreen.setChecked(config.get("keep_visible_fullscreen", constants.config.defaults.DEFAULT_KEEP_VISIBLE_FULLSCREEN))
+        self.show_system_resources.setChecked(config.get("show_system_resources", constants.config.defaults.DEFAULT_SHOW_SYSTEM_RESOURCES))
 
     def get_settings(self) -> Dict[str, Any]:
         # Get slider position and convert to update_rate value
@@ -116,6 +124,7 @@ class GeneralPage(QWidget):
             "update_rate": update_rate_value,
             "free_move": self.free_move.isChecked(),
             "keep_visible_fullscreen": self.keep_visible_fullscreen.isChecked(),
+            "show_system_resources": self.show_system_resources.isChecked(),
             "start_with_windows": self.start_with_windows.isChecked() 
         }
 

@@ -36,7 +36,6 @@ SolidCompression=yes
 OutputDir=installer
 
 OutputBaseFilename=NetGlance-{#AppVersion}-x64-Setup
-VersionInfoVersion={#AppVersion}
 
 DisableDirPage=auto
 UsePreviousAppDir=no
