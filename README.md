@@ -32,7 +32,7 @@ It features a lightweight, persistent taskbar overlay showing live upload and do
 ## 📸 NetGlance Demo
 <p align="center">
   <video width="60%" controls>
-    <source src="assets/v2-demo.mp4" type="video/mp4">
+    <source src="assets/v2-demo.gif" type="video/mp4">
     Your browser does not support the video tag.
   </video>
 </p>
