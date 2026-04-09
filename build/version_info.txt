@@ -19,7 +19,7 @@ VSVersionInfo(
         StringStruct('LegalCopyright', 'Copyright (c) Shayer Mahmud Sowmik'),
         StringStruct('OriginalFilename', 'NetGlance.exe'),
         StringStruct('ProductName', 'NetGlance'),
-        StringStruct('ProductVersion', '2.0.0-beta'),
+        StringStruct('ProductVersion', '2.0.0'),
       ]
     ),
     VarFileInfo([VarStruct('Translation', [0x0409, 1252])])

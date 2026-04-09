@@ -97,6 +97,7 @@ class ConfigManager:
         Initializes the ConfigManager.
         """
         self.config_path = Path(config_path or self.BASE_DIR / constants.config.defaults.CONFIG_FILENAME)
+        self.backup_path = self.config_path.with_name(f"{self.config_path.name}.bak")
         self.logger = logging.getLogger("NetSpeedTray.Config")
         self._last_config: Optional[Dict[str, Any]] = None
 
@@ -393,19 +394,40 @@ class ConfigManager:
     def load(self) -> Dict[str, Any]:
         """Loads and validates the configuration from the file."""
         if not self.config_path.exists():
-            self.logger.info("Configuration file not found. Creating with default settings.")
-            return self.reset_to_defaults()
+            # Try to recover from backup if primary is missing
+            if self.backup_path.exists():
+                self.logger.info("Configuration file missing. Attempting recovery from backup.")
+                try:
+                    import shutil
+                    shutil.copy2(self.backup_path, self.config_path)
+                except Exception as e:
+                    self.logger.error(f"Failed to recover from backup: {e}")
+            else:
+                self.logger.info("Configuration file not found. Creating with default settings.")
+                return self.reset_to_defaults()
+
         try:
             with self.config_path.open("r", encoding="utf-8") as f:
                 config = json.load(f)
         except json.JSONDecodeError:
-            self.logger.error("Configuration file is corrupt. Backing it up and using defaults.")
-            try:
-                corrupt_path = self.config_path.with_name(f"{self.config_path.name}.corrupt")
-                shutil.move(self.config_path, corrupt_path)
-            except Exception:
-                self.logger.exception("Failed to back up corrupt config file.")
-            return self.reset_to_defaults()
+            self.logger.error("Configuration file is corrupt. Attempting recovery from backup.")
+            if self.backup_path.exists():
+                try:
+                    import shutil
+                    shutil.copy2(self.backup_path, self.config_path)
+                    with self.config_path.open("r", encoding="utf-8") as f:
+                        config = json.load(f)
+                except Exception as e:
+                    self.logger.error(f"Backup recovery failed: {e}. Resetting to defaults.")
+                    return self.reset_to_defaults()
+            else:
+                try:
+                    corrupt_path = self.config_path.with_name(f"{self.config_path.name}.corrupt")
+                    import shutil
+                    shutil.move(self.config_path, corrupt_path)
+                except Exception:
+                    self.logger.exception("Failed to back up corrupt config file.")
+                return self.reset_to_defaults()
         except OSError as e:
             msg = f"OS error reading config file {self.config_path}: {e}"
             self.logger.critical(msg)
@@ -418,7 +440,19 @@ class ConfigManager:
 
 
     def save(self, config: Dict[str, Any]) -> None:
-        """Atomically saves the provided configuration to the file."""
+        """
+        Saves the provided configuration dictionary to the file atomically.
+
+        Args:
+            config: The configuration dictionary to save.
+
+        Raises:
+            ConfigError: If saving fails due to an OS error or other exception.
+        """
+        import os
+        import time
+        from netspeedtray.utils.styles import is_dark_mode
+
         validated_config = self._validate_config(config)
         
         config_to_save = { key: value for key, value in validated_config.items() if value is not None }
@@ -434,10 +468,33 @@ class ConfigManager:
                 "w", delete=False, dir=self.config_path.parent, encoding="utf-8"
             ) as temp_f:
                 json.dump(config_to_save, temp_f, indent=4)
+                temp_f.flush()
+                # Ensure data is fully written to physical disk to prevent NTFS zeroing on crash
+                os.fsync(temp_f.fileno())
                 temp_path = temp_f.name
-            shutil.move(temp_path, self.config_path)
+
+            # Robust atomic replacement with retry logic for Windows Defender locks
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    shutil.move(temp_path, self.config_path)
+                    
+                    # Create a backup after successful save
+                    try:
+                        shutil.copy2(self.config_path, self.backup_path)
+                    except OSError:
+                        pass # Ignore backup failures
+                        
+                    break
+                except PermissionError as e:
+                    if attempt < max_retries - 1:
+                        time.sleep(0.1) # Wait for filesystem hook to release
+                        continue
+                    else:
+                        raise e
             self._last_config = validated_config.copy()
-            self.logger.debug("Configuration saved successfully to %s", self.config_path)
+            self.logger.debug(f"Configuration successfully saved to {self.config_path}")
+            
         except OSError as e:
             msg = f"Failed to save configuration to {self.config_path}: {e}"
             self.logger.error(msg)

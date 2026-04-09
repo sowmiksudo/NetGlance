@@ -20,7 +20,7 @@ class UpdateCheckThread(QThread):
         try:
             req = urllib.request.Request(
                 "https://api.github.com/repos/sowmiksudo/NetGlance/releases/latest",
-                headers={'User-Agent': 'NetSpeedTray'}
+                headers={'User-Agent': 'NetGlance'}
             )
             with urllib.request.urlopen(req, timeout=5) as response:
                 if response.status == 200:
@@ -65,6 +65,48 @@ class AboutPage(QWidget):
         repo_layout.addWidget(repo_link)
         repo_layout.addStretch()
 
+        # Privacy Policy link (required by Microsoft Store Policy 10.5.1)
+        privacy_layout = QHBoxLayout()
+        privacy_label = QLabel("Privacy Policy:")
+        privacy_link = QLabel('<a href="https://github.com/sowmiksudo/NetGlance/blob/main/PRIVACY_POLICY.md">View Privacy Policy</a>')
+        privacy_link.setOpenExternalLinks(True)
+        privacy_layout.addWidget(privacy_label)
+        privacy_layout.addWidget(privacy_link)
+        privacy_layout.addStretch()
+
+        # License link
+        license_layout = QHBoxLayout()
+        license_label = QLabel("License:")
+        license_link = QLabel('<a href="https://github.com/sowmiksudo/NetGlance/blob/main/LICENSE">GNU General Public License v3.0</a>')
+        license_link.setOpenExternalLinks(True)
+        license_layout.addWidget(license_label)
+        license_layout.addWidget(license_link)
+        license_layout.addStretch()
+
+        license_note = QLabel("NetGlance is free and open-source software distributed under the GPLv3 license.")
+        license_note.setWordWrap(True)
+        license_note.setStyleSheet("color: #888888; font-size: 11px;")
+
+        # Donate / Sponsor
+        donate_layout = QHBoxLayout()
+        donate_label = QLabel("Support:")
+        self.donate_btn = QPushButton("☕  Donate / Sponsor")
+        self.donate_btn.setMaximumWidth(200)
+        self.donate_btn.setStyleSheet(
+            "QPushButton {"
+            "  background-color: #2ea043; color: white; border: none;"
+            "  border-radius: 6px; padding: 6px 16px; font-weight: bold;"
+            "}"
+            "QPushButton:hover { background-color: #3fb950; }"
+        )
+        self.donate_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.donate_btn.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl("https://sowmik.pages.dev/donate"))
+        )
+        donate_layout.addWidget(donate_label)
+        donate_layout.addWidget(self.donate_btn)
+        donate_layout.addStretch()
+
         version_label = QLabel(f"Current Version: {netspeedtray.__version__}")
         
         self.check_update_btn = QPushButton("Check for Updates")
@@ -74,6 +116,10 @@ class AboutPage(QWidget):
         layout.addWidget(title)
         layout.addWidget(author_label)
         layout.addLayout(repo_layout)
+        layout.addLayout(privacy_layout)
+        layout.addLayout(license_layout)
+        layout.addWidget(license_note)
+        layout.addLayout(donate_layout)
         layout.addWidget(version_label)
         layout.addWidget(self.check_update_btn)
         layout.addStretch()

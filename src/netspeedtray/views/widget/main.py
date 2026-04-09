@@ -757,16 +757,24 @@ class NetworkSpeedWidget(QWidget):
             from netspeedtray.views.analytics_dashboard import AnalyticsDashboard
 
             if self.analytics_dashboard is None:
+                self.logger.debug("Creating new AnalyticsDashboard instance...")
                 self.analytics_dashboard = AnalyticsDashboard()
+                self.logger.debug("AnalyticsDashboard constructed successfully.")
                 # Connect the graph button to open_graph_window
                 self.analytics_dashboard.open_graph_requested.connect(self.open_graph_window)
                 # Sync speed data with the main app's monitor thread
                 self.analytics_dashboard.connect_to_app(self.monitor_thread)
+                self.logger.debug("AnalyticsDashboard connected to monitor thread.")
 
             if self.analytics_dashboard.isVisible():
+                self.logger.debug("Dashboard visible — hiding.")
                 self.analytics_dashboard.hide_animated()
             else:
+                self.logger.debug("Dashboard hidden — showing anchored to widget geometry.")
                 self.analytics_dashboard.show_anchored(self.geometry())
+                self.logger.debug("Dashboard show_anchored() completed. Visible=%s, Size=%s",
+                                  self.analytics_dashboard.isVisible(),
+                                  self.analytics_dashboard.size())
 
         except Exception as e:
             self.logger.error(f"Error toggling analytics dashboard: {e}", exc_info=True)

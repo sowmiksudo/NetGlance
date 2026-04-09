@@ -204,19 +204,34 @@ function InitializeSetup(): Boolean;
 begin
   if IsAppRunning() then
   begin
-    if MsgBox('{#MyAppName} is currently running and needs to be closed to continue installation.'#13#10#13#10'Click OK to automatically close it, or Cancel to exit the installer.', mbConfirmation, MB_OKCANCEL) = IDOK then
+    // Microsoft Store (Policy 10.2.9) requires silent install with no UI.
+    // In silent/very-silent mode, automatically close the app without prompting.
+    if WizardSilent() then
     begin
+      Log('Silent mode: Automatically closing {#MyAppName}...');
       if not CloseNetGlance() then
       begin
-        MsgBox('Failed to close {#MyAppName}.'#13#10'Please close it manually and try again.', mbError, MB_OK);
+        Log('Silent mode: Failed to close {#MyAppName}. Aborting.');
         Result := False;
         Exit;
       end;
     end
     else
     begin
-      Result := False;
-      Exit;
+      if MsgBox('{#MyAppName} is currently running and needs to be closed to continue installation.'#13#10#13#10'Click OK to automatically close it, or Cancel to exit the installer.', mbConfirmation, MB_OKCANCEL) = IDOK then
+      begin
+        if not CloseNetGlance() then
+        begin
+          MsgBox('Failed to close {#MyAppName}.'#13#10'Please close it manually and try again.', mbError, MB_OK);
+          Result := False;
+          Exit;
+        end;
+      end
+      else
+      begin
+        Result := False;
+        Exit;
+      end;
     end;
   end;
   Result := True;
@@ -226,19 +241,33 @@ function InitializeUninstall(): Boolean;
 begin
   if IsAppRunning() then
   begin
-    if MsgBox('{#MyAppName} is currently running and needs to be closed to continue uninstallation.'#13#10#13#10'Click OK to automatically close it, or Cancel to exit the uninstaller.', mbConfirmation, MB_OKCANCEL) = IDOK then
+    // In silent uninstall mode, automatically close without prompting.
+    if UnInstallSilent() then
     begin
+      Log('Silent uninstall: Automatically closing {#MyAppName}...');
       if not CloseNetGlance() then
       begin
-        MsgBox('Failed to close {#MyAppName}.'#13#10'Please close it manually and try again.', mbError, MB_OK);
+        Log('Silent uninstall: Failed to close {#MyAppName}. Aborting.');
         Result := False;
         Exit;
       end;
     end
     else
     begin
-      Result := False;
-      Exit;
+      if MsgBox('{#MyAppName} is currently running and needs to be closed to continue uninstallation.'#13#10#13#10'Click OK to automatically close it, or Cancel to exit the uninstaller.', mbConfirmation, MB_OKCANCEL) = IDOK then
+      begin
+        if not CloseNetGlance() then
+        begin
+          MsgBox('Failed to close {#MyAppName}.'#13#10'Please close it manually and try again.', mbError, MB_OK);
+          Result := False;
+          Exit;
+        end;
+      end
+      else
+      begin
+        Result := False;
+        Exit;
+      end;
     end;
   end;
   

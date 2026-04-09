@@ -56,11 +56,6 @@ class NetworkMonitorThread(QThread):
                 if counters:
                     self.counters_ready.emit(counters)
                     
-                # Fetch system stats explicitly off the main thread
-                cpu_usage = psutil.cpu_percent(interval=None)
-                ram_usage = psutil.virtual_memory().percent
-                self.system_stats_ready.emit(cpu_usage, ram_usage)
-                    
                 # Success - reset circuit breaker
                 if self.consecutive_errors > 0:
                     self.logger.info("Network monitor recovered from transient errors.")
@@ -87,6 +82,16 @@ class NetworkMonitorThread(QThread):
                     self._is_running = False
                     break
             
+            # System stats (CPU/RAM) are isolated in their own try/except so that
+            # failures here (e.g. psutil.AccessDenied on locked-down Win10) do NOT
+            # increment the network error counter or kill the monitor thread.
+            try:
+                cpu_usage = psutil.cpu_percent(interval=None)
+                ram_usage = psutil.virtual_memory().percent
+                self.system_stats_ready.emit(cpu_usage, ram_usage)
+            except Exception as e:
+                self.logger.debug("System stats polling failed (non-fatal): %s", e)
+
             # Use sliced sleep to remain responsive to shutdown requests
             sleep_remaining = self.interval
             while sleep_remaining > 0 and self._is_running:

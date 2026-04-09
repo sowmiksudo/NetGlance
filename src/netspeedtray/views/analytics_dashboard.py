@@ -266,6 +266,106 @@ class _PingWorker(QThread):
         self.wait(4000)
 
 
+class _ProcessWorker(QThread):
+    """
+    Worker thread that retrieves active network processes using psutil.net_connections
+    and calculates proportional speed to avoid blocking the main UI thread on Windows.
+    """
+    data_ready = pyqtSignal(list)
+
+    def __init__(self):
+        super().__init__()
+        self._running = True
+        self._proc_io_prev = {}
+        self._proc_last_refresh = 0
+        self._current_dl = 0.0
+        self._current_ul = 0.0
+
+    def set_current_speed(self, dl, ul):
+        """Update total network bandwidth so the thread can calculate proportions."""
+        self._current_dl = dl
+        self._current_ul = ul
+
+    def run(self):
+        import psutil
+        import time
+        while self._running:
+            try:
+                now = time.time()
+                elapsed = now - self._proc_last_refresh if self._proc_last_refresh else 3.0
+                elapsed = max(elapsed, 0.5)
+
+                pid_names = {}
+                for conn in psutil.net_connections(kind="inet"):
+                    if conn.status == "ESTABLISHED" and conn.pid:
+                        if conn.pid in pid_names:
+                            continue
+                        try:
+                            p = psutil.Process(conn.pid)
+                            name = p.name()
+                            if name.lower() not in ("system", "svchost.exe", ""):
+                                pid_names[conn.pid] = name
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            pass
+
+                proc_io_deltas = []
+                new_io_prev = {}
+
+                for pid, name in pid_names.items():
+                    try:
+                        io = psutil.Process(pid).io_counters()
+                        current_bytes = io.read_bytes + io.write_bytes
+                        new_io_prev[pid] = (io.read_bytes, io.write_bytes, now)
+
+                        if pid in self._proc_io_prev:
+                            prev_r, prev_w, _ = self._proc_io_prev[pid]
+                            delta_bytes = max(0, current_bytes - (prev_r + prev_w))
+                            io_kbps = (delta_bytes / elapsed) / 1024.0
+                        else:
+                            io_kbps = 0.0
+
+                        proc_io_deltas.append((name, io_kbps))
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+
+                self._proc_io_prev = new_io_prev
+                self._proc_last_refresh = now
+
+                name_io = {}
+                for name, io_kbps in proc_io_deltas:
+                    name_io[name] = name_io.get(name, 0.0) + io_kbps
+
+                total_net_speed = self._current_dl + self._current_ul
+                total_io = sum(name_io.values())
+
+                sorted_procs = []
+                for name, io_kbps in name_io.items():
+                    if total_io > 0 and total_net_speed > 0:
+                        net_speed = (io_kbps / total_io) * total_net_speed
+                    else:
+                        net_speed = 0.0
+                    sorted_procs.append((name, net_speed))
+
+                sorted_procs.sort(key=lambda x: x[1], reverse=True)
+                top5 = sorted_procs[:5]
+                
+                self.data_ready.emit(top5)
+            except Exception:
+                pass
+
+            # Sleep 3 seconds before next refresh
+            for _ in range(30):
+                if not self._running:
+                    return
+                time.sleep(0.1)
+
+    def stop(self):
+        self._running = False
+        self.wait(4000)
+
+
+
+
 # ─── Helper Widgets ───────────────────────────────────────────────────────────
 
 class _Card(QFrame):
@@ -359,8 +459,6 @@ class AnalyticsDashboard(QWidget):
         self._ul_history = np.zeros(_GRAPH_POINTS)
         self._current_dl = 0.0
         self._current_ul = 0.0
-        self._proc_io_prev = {}      # {pid: (read_bytes, write_bytes, timestamp)}
-        self._proc_last_refresh = 0  # time.time() of last process refresh
         self._acrylic_applied = False
 
         # ── Build UI ─────────────────────────────────────────────────────
@@ -380,14 +478,13 @@ class AnalyticsDashboard(QWidget):
         self._ping_worker.data_ready.connect(self._on_ping_data)
         self._ping_worker.start()
 
-        # ── Periodic UI refresh ──────────────────────────────────────────
-        self._refresh_timer = QTimer(self)
-        self._refresh_timer.timeout.connect(self._refresh_processes)
-        self._refresh_timer.start(3000)  # Refresh process list every 3s
+        self._proc_worker = _ProcessWorker()
+        self._proc_worker.data_ready.connect(self._on_processes_data)
+        self._proc_worker.start()
 
-        # ── Initial data (run synchronously so panel height is correct) ──
-        self._populate_interface_info()
-        self._refresh_processes()
+        # ── Initial data ──
+        # Don't block UI; use QTimer to trigger after return from __init__
+        QTimer.singleShot(0, self._populate_interface_info)
 
         self._is_hiding = False
         self._show_time = 0.0  # Time when dashboard was shown
@@ -410,14 +507,27 @@ class AnalyticsDashboard(QWidget):
 
     def _on_system_stats(self, cpu, ram):
         """Update system resource indicators."""
-        cpu_clamped = max(0, min(100, int(cpu)))
-        ram_clamped = max(0, min(100, int(ram)))
+        # Guard: if the resources card failed to build, skip silently
+        if self._cpu_bar is None or self._ram_bar is None:
+            return
 
-        self._cpu_bar.setValue(cpu_clamped)
-        self._cpu_label.setText(f"{cpu:.0f}%")
+        now = time.time()
+        # Throttle GUI updates to ~1 second to prevent UI thread freezing & DWM crashes
+        if hasattr(self, '_last_sys_update') and now - self._last_sys_update < 0.95:
+            return
+        self._last_sys_update = now
 
-        self._ram_bar.setValue(ram_clamped)
-        self._ram_label.setText(f"{ram:.0f}%")
+        try:
+            cpu_clamped = max(0, min(100, int(cpu)))
+            ram_clamped = max(0, min(100, int(ram)))
+
+            self._cpu_bar.setValue(cpu_clamped)
+            self._cpu_label.setText(f"{cpu:.0f}%")
+
+            self._ram_bar.setValue(ram_clamped)
+            self._ram_label.setText(f"{ram:.0f}%")
+        except Exception:
+            pass
 
     def _on_external_counters(self, counters_dict):
         """Process per-NIC counters from the main app's monitor thread."""
@@ -427,14 +537,23 @@ class AnalyticsDashboard(QWidget):
 
         if self._ext_prev_recv is not None:
             elapsed = now - self._ext_prev_time
-            if elapsed > 0.1:
-                dl_kbps = max(0, (total_recv - self._ext_prev_recv) / elapsed / 1024.0)
-                ul_kbps = max(0, (total_sent - self._ext_prev_sent) / elapsed / 1024.0)
+            # Throttle GUI update to ~1 second to match the 60-second rolling graph and avoid Qt event-loop flooding
+            if elapsed > 0.95:
+                # Force strictly to 1s calculation even if slightly off, to keep chart consistent
+                calc_elapsed = elapsed if elapsed > 0.1 else 1.0
+                dl_kbps = max(0, (total_recv - self._ext_prev_recv) / calc_elapsed / 1024.0)
+                ul_kbps = max(0, (total_sent - self._ext_prev_sent) / calc_elapsed / 1024.0)
                 self._on_speed_data(dl_kbps, ul_kbps, total_recv, total_sent)
-
-        self._ext_prev_recv = total_recv
-        self._ext_prev_sent = total_sent
-        self._ext_prev_time = now
+                
+                # Only reset tracking vars if we actually processed an update
+                self._ext_prev_recv = total_recv
+                self._ext_prev_sent = total_sent
+                self._ext_prev_time = now
+                return
+        else:
+            self._ext_prev_recv = total_recv
+            self._ext_prev_sent = total_sent
+            self._ext_prev_time = now
 
     # ── Public helpers ────────────────────────────────────────────────────
 
@@ -538,9 +657,9 @@ class AnalyticsDashboard(QWidget):
         Auto-hide when the window loses activation (user clicks elsewhere).
         """
         if event.type() == QEvent.Type.ActivationChange:
-            # Add a 1-second grace period after showing to prevent immediate close
-            # if the window doesn't gain focus instantly.
-            if not self.isActiveWindow() and self.isVisible() and (time.time() - self._show_time > 1.0):
+            # Extended 2-second grace period for Win10 Tool windows that may
+            # not gain activation as quickly as Win11.
+            if not self.isActiveWindow() and self.isVisible() and (time.time() - self._show_time > 2.0):
                 self.hide_animated()
         super().changeEvent(event)
 
@@ -560,17 +679,34 @@ class AnalyticsDashboard(QWidget):
         super().hideEvent(event)
 
     def _check_foreground(self):
-        """OS-level check: close dashboard if it's no longer the foreground window."""
+        """
+        Gentler focus check: close dashboard only if NEITHER this window NOR
+        any child popup (e.g., tooltip) is the active Qt window, AND this is
+        not the Win32 foreground window.  Tool windows on Win10 rarely become
+        the OS-level foreground window, so the primary check now uses Qt's
+        ``QApplication.activeWindow()`` which correctly tracks Tool-window
+        activation.
+        """
         if not self.isVisible() or self._is_hiding:
             return
-        # Add a 1-second grace period after showing
-        if time.time() - self._show_time < 1.0:
+        # Extended 2-second grace period for Win10 where Tool windows take
+        # longer (or never) receive foreground status.
+        if time.time() - self._show_time < 2.0:
             return
         try:
+            # Primary check: Qt's own activation tracking (works for Tool windows)
+            active = QApplication.activeWindow()
+            if active is self:
+                return  # Dashboard is the active window — keep visible
+
+            # Secondary check: OS-level foreground window (catches Win11 focus)
             fg_hwnd = ctypes.windll.user32.GetForegroundWindow()
             my_hwnd = int(self.winId())
-            if fg_hwnd != my_hwnd:
-                self.hide_animated()
+            if fg_hwnd == my_hwnd:
+                return  # Dashboard is the OS foreground window — keep visible
+
+            # Neither check passed — user has clicked elsewhere, hide.
+            self.hide_animated()
         except Exception:
             pass
 
@@ -578,7 +714,8 @@ class AnalyticsDashboard(QWidget):
         """Clean up background threads."""
         self._speed_worker.stop()
         self._ping_worker.stop()
-        self._refresh_timer.stop()
+        if hasattr(self, '_proc_worker'):
+            self._proc_worker.stop()
         super().closeEvent(event)
 
     def paintEvent(self, event):
@@ -631,6 +768,10 @@ class AnalyticsDashboard(QWidget):
         # Update totals
         self._total_dl_label.setText(self._format_bytes(total_recv))
         self._total_ul_label.setText(self._format_bytes(total_sent))
+        
+        # Share external speed data with process worker so it can scale I/O
+        if hasattr(self, '_proc_worker'):
+            self._proc_worker.set_current_speed(dl_kbps, ul_kbps)
 
     def _on_ping_data(self, latency, jitter, connected):
         """Called every ~2 seconds with ping results."""
@@ -649,72 +790,9 @@ class AnalyticsDashboard(QWidget):
             self._latency_label.setText("— ms")
             self._jitter_label.setText("— ms")
 
-    def _refresh_processes(self):
-        """Refresh active network processes with proportional network speed estimates."""
+    def _on_processes_data(self, top5: list):
+        """Update active processes UI with data from worker thread."""
         try:
-            now = time.time()
-            elapsed = now - self._proc_last_refresh if self._proc_last_refresh else 3.0
-            elapsed = max(elapsed, 0.5)
-
-            # 1. Collect PIDs with active network connections
-            pid_names = {}  # {pid: process_name}
-            for conn in psutil.net_connections(kind="inet"):
-                if conn.status == "ESTABLISHED" and conn.pid:
-                    if conn.pid in pid_names:
-                        continue
-                    try:
-                        p = psutil.Process(conn.pid)
-                        name = p.name()
-                        if name.lower() not in ("system", "svchost.exe", ""):
-                            pid_names[conn.pid] = name
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        pass
-
-            # 2. Measure raw I/O deltas per PID
-            proc_io_deltas = []  # [(name, io_delta_kbps)]
-            new_io_prev = {}
-
-            for pid, name in pid_names.items():
-                try:
-                    io = psutil.Process(pid).io_counters()
-                    current_bytes = io.read_bytes + io.write_bytes
-                    new_io_prev[pid] = (io.read_bytes, io.write_bytes, now)
-
-                    if pid in self._proc_io_prev:
-                        prev_r, prev_w, _ = self._proc_io_prev[pid]
-                        delta_bytes = max(0, current_bytes - (prev_r + prev_w))
-                        io_kbps = (delta_bytes / elapsed) / 1024.0
-                    else:
-                        io_kbps = 0.0
-
-                    proc_io_deltas.append((name, io_kbps))
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
-
-            self._proc_io_prev = new_io_prev
-            self._proc_last_refresh = now
-
-            # 3. Deduplicate by name (sum I/O for same-name processes)
-            name_io = {}
-            for name, io_kbps in proc_io_deltas:
-                name_io[name] = name_io.get(name, 0.0) + io_kbps
-
-            # 4. Proportional distribution of actual network speed
-            total_net_speed = self._current_dl + self._current_ul  # Real network KB/s
-            total_io = sum(name_io.values())
-
-            sorted_procs = []
-            for name, io_kbps in name_io.items():
-                if total_io > 0 and total_net_speed > 0:
-                    net_speed = (io_kbps / total_io) * total_net_speed
-                else:
-                    net_speed = 0.0
-                sorted_procs.append((name, net_speed))
-
-            sorted_procs.sort(key=lambda x: x[1], reverse=True)
-            top5 = sorted_procs[:5]
-
-            # 5. Update UI
             for i in range(5):
                 if i < len(top5):
                     name, speed = top5[i]
@@ -722,7 +800,6 @@ class AnalyticsDashboard(QWidget):
                     self._proc_name_labels[i].setStyleSheet(
                         self._label_style(_COLORS["text_primary"], 12)
                     )
-                    # Format dynamically
                     self._proc_speed_labels[i].setText(self._format_speed(speed))
                     self._proc_dot_labels[i].setStyleSheet(
                         f"color: {_COLORS['accent']}; font-size: 8px; padding-top: 2px; background: transparent;"
@@ -736,7 +813,6 @@ class AnalyticsDashboard(QWidget):
                     self._proc_dot_labels[i].setStyleSheet(
                         f"color: {_COLORS['text_tertiary']}; font-size: 8px; padding-top: 2px; background: transparent;"
                     )
-
         except Exception:
             pass
 
@@ -849,10 +925,19 @@ class AnalyticsDashboard(QWidget):
         self._build_interface_into(iface_card.card_layout())
         root.addWidget(iface_card)
 
-        # D. System Resources card
-        resources_card = _Card()
-        self._build_resources_into(resources_card.card_layout())
-        root.addWidget(resources_card)
+        # D. System Resources card (wrapped in try/except for Win10 graceful degradation)
+        try:
+            resources_card = _Card()
+            self._build_resources_into(resources_card.card_layout())
+            root.addWidget(resources_card)
+        except Exception:
+            # If system resources card construction fails (e.g. QProgressBar
+            # rendering issues on older Windows), skip it silently and
+            # initialise stub attributes so _on_system_stats won't crash.
+            self._cpu_bar = None
+            self._cpu_label = None
+            self._ram_bar = None
+            self._ram_label = None
 
         # E. Active Processes card
         procs_card = _Card()
