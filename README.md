@@ -9,8 +9,8 @@
   <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+" />
   <img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3" />
   <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-lightgrey.svg" alt="Platform: Windows" />
-  <a href="https://sowmik.pages.dev/donate"><img src="https://img.shields.io/badge/Donate-E2136E?style=for-the-badge&logo=googlepay&logoColor=white"/></a>
 </p>
+<p align="center"><a href="https://sowmik.pages.dev/donate"><img src="https://img.shields.io/badge/Donate-E2136E?style=for-the-badge&logo=bkash&logoColor=white"/></a></p>
 
 **NetGlance** brings the clean, detailed, macOS-style network monitoring experience (similar to iStat Menus) directly to the Windows taskbar. 
 
