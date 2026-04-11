@@ -43,6 +43,13 @@ You do not need to install Python to use this app.
 2. Download the latest `NetGlance-Setup.exe` or the portable `.zip`.
 3. Run the executable. The widget will automatically appear in your taskbar!
 
+### Using WinGet (Fastest)
+Go to windows terminal and run:
+
+```
+winget install sowmiksudo.Netglance
+```
+
 ### For Developers (Build from Source)
 If you want to run the code directly or contribute to the project:
 
