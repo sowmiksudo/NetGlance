@@ -5,6 +5,12 @@
 </p>
 
 <p align="center">
+  <a href="https://apps.microsoft.com/detail/9PPS4P9GXVMT">
+    <img src="https://get.microsoft.com/images/en-us%20dark.svg" width="200" alt="Get it from Microsoft Store" />
+  </a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/version-2.0.0-orange.svg" alt="Version 2.0.0" />
   <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+" />
   <img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3" />
@@ -37,25 +43,31 @@ It features a lightweight, persistent taskbar overlay showing live upload and do
 
 ## 🚀 Installation & Usage
 
-### For Regular Users (Recommended)
-You do not need to install Python to use this app. 
-1. Go to the [Releases](../../releases) page.
-2. Download the latest `NetGlance-Setup.exe` or the portable `.zip`.
-3. Run the executable. The widget will automatically appear in your taskbar!
+### Get it from Microsoft Store (Recommended)
+The easiest way to install and stay updated is through the Microsoft Store:
+<a href="https://apps.microsoft.com/detail/9PPS4P9GXVMT">
+  <img src="https://get.microsoft.com/images/en-us%20dark.svg" width="160" alt="Get it from Microsoft Store" />
+</a>
 
-### Using WinGet (Fastest)
+### Using WinGet (Fastest CLI)
 Go to windows terminal and run:
 
 ```
 winget install sowmiksudo.Netglance
 ```
 
+### Manual Download
+You do not need to install Python to use this app. 
+1. Go to the [Releases](../../releases) page.
+2. Download the latest `NetGlance-Setup.exe` or the portable `.zip`.
+3. Run the executable. The widget will automatically appear in your taskbar!
+
 ### For Developers (Build from Source)
 If you want to run the code directly or contribute to the project:
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/sowmiksudo/NetGlance.git
+git clone [https://github.com/sowmiksudo/NetGlance.git](https://github.com/sowmiksudo/NetGlance.git)
 cd NetGlance
 
 ```
