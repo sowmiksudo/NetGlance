@@ -45,6 +45,7 @@ It features a lightweight, persistent taskbar overlay showing live upload and do
 
 ### Get it from Microsoft Store (Recommended)
 The easiest way to install and stay updated is through the Microsoft Store:
+
 <a href="https://apps.microsoft.com/detail/9PPS4P9GXVMT">
   <img src="https://get.microsoft.com/images/en-us%20dark.svg" width="160" alt="Get it from Microsoft Store" />
 </a>
