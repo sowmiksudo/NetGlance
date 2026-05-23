@@ -14,6 +14,10 @@ import psutil
 
 logger = logging.getLogger("NetSpeedTray.NetworkUtils")
 
+# Module-level counter for rate-limiting the network-unreachable warning.
+# Prevents thousands of identical log lines when the network is down.
+_consecutive_network_failures: int = 0
+
 
 def guid_to_friendly_name(guid: str) -> Optional[str]:
     """
@@ -49,6 +53,8 @@ def get_primary_interface_name() -> Optional[str]:
         The name of the primary interface (e.g., "Wi-Fi"), or None if it
         cannot be determined.
     """
+    global _consecutive_network_failures
+
     local_ip = "0.0.0.0" # Initialize for logging in case of early exit
     try:
         # Create a UDP socket to a public IP (Google's DNS) to find the default route
@@ -66,11 +72,27 @@ def get_primary_interface_name() -> Optional[str]:
         for iface_name, addrs in all_addrs.items():
             for addr in addrs:
                 if addr.family == socket.AF_INET and addr.address == local_ip:
-                    logger.debug(f"Determined primary interface: '{iface_name}' with IP {local_ip}")
+                    # Network is back — reset failure counter and log recovery
+                    if _consecutive_network_failures > 0:
+                        logger.info(
+                            "Network recovered after %d failed probe(s). Primary interface: '%s'",
+                            _consecutive_network_failures, iface_name,
+                        )
+                        _consecutive_network_failures = 0
+                    else:
+                        logger.debug(f"Determined primary interface: '{iface_name}' with IP {local_ip}")
                     return iface_name
                     
     except (OSError, socket.gaierror) as e:
-        logger.warning(f"Could not determine primary interface due to network error: {e}")
+        _consecutive_network_failures += 1
+        # Log the first failure, then only every 60th attempt (~once per 30 min
+        # when throttled to 30s intervals in the controller) to prevent log spam.
+        if _consecutive_network_failures == 1 or _consecutive_network_failures % 60 == 0:
+            logger.warning(
+                "Could not determine primary interface due to network error "
+                "(failure #%d): %s",
+                _consecutive_network_failures, e,
+            )
         return None
     except Exception as e:
         logger.error(f"Unexpected error determining primary interface: {e}", exc_info=True)

@@ -10,6 +10,11 @@ import logging
 import time
 from typing import Dict, Any, List, Optional, TYPE_CHECKING, Tuple
 
+# How often (in seconds) we re-probe the OS for the primary network interface.
+_PRIMARY_IFACE_CHECK_INTERVAL = 30.0
+# Longer cooldown after a failure (e.g. network unreachable) to avoid log spam.
+_PRIMARY_IFACE_FAILURE_COOLDOWN = 120.0
+
 from PyQt6.QtCore import pyqtSignal, QObject
 import psutil
 
@@ -288,7 +293,15 @@ class NetworkController(QObject):
         """
         Identifies and updates the primary network interface using the robust
         socket-based method from network_utils.
+
+        Throttled to run at most once every _PRIMARY_IFACE_CHECK_INTERVAL seconds
+        (or _PRIMARY_IFACE_FAILURE_COOLDOWN seconds after a failure) to avoid
+        flooding the log when the network is unavailable.
         """
+        now = time.monotonic()
+        if self.last_primary_check_time and (now - self.last_primary_check_time) < _PRIMARY_IFACE_CHECK_INTERVAL:
+            return  # Use the cached value
+
         try:
             new_primary_interface = get_primary_interface_name()
             if self.primary_interface != new_primary_interface:
@@ -297,9 +310,12 @@ class NetworkController(QObject):
                 else:
                     self.logger.warning("Could not determine primary interface. Speeds may show as 0 in 'Auto' mode.")
                 self.primary_interface = new_primary_interface
+            self.last_primary_check_time = now
         except Exception as e:
             self.logger.error("Unexpected error updating primary interface: %s", e, exc_info=True)
             self.primary_interface = None
+            # Back off longer after failure to prevent log spam
+            self.last_primary_check_time = now + (_PRIMARY_IFACE_FAILURE_COOLDOWN - _PRIMARY_IFACE_CHECK_INTERVAL)
 
 
     def get_available_interfaces(self) -> List[str]:

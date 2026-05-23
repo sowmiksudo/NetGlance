@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.1.0] - 2026-05-23
+
+### 🐛 Bug Fixes
+
+- **Windows 10 Dashboard Positioning:** Fixed a critical issue where the Analytics Dashboard popup would appear below the taskbar widget on Windows 10 instead of above it. The dashboard now uses the system's available geometry (which excludes the taskbar) to calculate its position, ensuring it always appears in the visible desktop area on both Windows 10 and Windows 11.
+
+### 🔧 Improvements
+
+- **Taskbar-Aware Dashboard Placement:** The dashboard now detects the taskbar edge (top, bottom, left, right) and positions itself accordingly, with the slide animation direction matching the taskbar position for a natural feel.
+
+---
+
 ## [2.0.0-beta] - 2026-04-07
 
 ### ✨ New Features

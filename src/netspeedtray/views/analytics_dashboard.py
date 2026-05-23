@@ -131,41 +131,6 @@ def _apply_acrylic_backdrop(hwnd):
         return False
 
 
-# ─── Taskbar Detection (standalone, no netspeedtray imports) ──────────────────
-
-def _get_taskbar_rect():
-    """
-    Find the primary Windows taskbar rect using Win32 API.
-    Returns (left, top, right, bottom) in physical pixels, or None.
-    """
-    try:
-        import win32gui
-        hwnd = win32gui.FindWindow("Shell_TrayWnd", None)
-        if hwnd:
-            return win32gui.GetWindowRect(hwnd)
-    except Exception:
-        pass
-
-    # Fallback via ctypes if pywin32 not available
-    try:
-        class APPBARDATA(ctypes.Structure):
-            _fields_ = [
-                ("cbSize", wintypes.DWORD),
-                ("hWnd", wintypes.HWND),
-                ("uCallbackMessage", wintypes.UINT),
-                ("uEdge", wintypes.UINT),
-                ("rc", wintypes.RECT),
-                ("lParam", wintypes.LPARAM),
-            ]
-
-        abd = APPBARDATA()
-        abd.cbSize = ctypes.sizeof(abd)
-        windll.shell32.SHAppBarMessage(5, ctypes.byref(abd))  # ABM_GETTASKBARPOS = 5
-        rc = abd.rc
-        return (rc.left, rc.top, rc.right, rc.bottom)
-    except Exception:
-        return None
-
 
 # ─── Background Data Workers ─────────────────────────────────────────────────
 
@@ -215,42 +180,47 @@ class _PingWorker(QThread):
     def __init__(self):
         super().__init__()
         self._running = True
+        self._is_paused = False
         self._recent_pings = []
+
+    def set_paused(self, paused: bool):
+        self._is_paused = paused
 
     def run(self):
         while self._running:
             try:
-                result = subprocess.run(
-                    ["ping", "-n", "1", "-w", "1500", "8.8.8.8"],
-                    capture_output=True, text=True, timeout=3,
-                    creationflags=subprocess.CREATE_NO_WINDOW
-                )
-                output = result.stdout
+                if not self._is_paused:
+                    result = subprocess.run(
+                        ["ping", "-n", "1", "-w", "1500", "8.8.8.8"],
+                        capture_output=True, text=True, timeout=3,
+                        creationflags=subprocess.CREATE_NO_WINDOW
+                    )
+                    output = result.stdout
 
-                # Parse latency from Windows ping output: "time=XXms" or "time<1ms"
-                latency = -1.0
-                for line in output.splitlines():
-                    if "time=" in line.lower() or "time<" in line.lower():
-                        import re
-                        match = re.search(r'time[=<](\d+)', line, re.IGNORECASE)
-                        if match:
-                            latency = float(match.group(1))
-                            break
+                    # Parse latency from Windows ping output: "time=XXms" or "time<1ms"
+                    latency = -1.0
+                    for line in output.splitlines():
+                        if "time=" in line.lower() or "time<" in line.lower():
+                            import re
+                            match = re.search(r'time[=<](\d+)', line, re.IGNORECASE)
+                            if match:
+                                latency = float(match.group(1))
+                                break
 
-                if latency >= 0:
-                    self._recent_pings.append(latency)
-                    if len(self._recent_pings) > 5:
-                        self._recent_pings.pop(0)
+                    if latency >= 0:
+                        self._recent_pings.append(latency)
+                        if len(self._recent_pings) > 5:
+                            self._recent_pings.pop(0)
 
-                    jitter = 0.0
-                    if len(self._recent_pings) >= 2:
-                        diffs = [abs(self._recent_pings[i] - self._recent_pings[i-1])
-                                 for i in range(1, len(self._recent_pings))]
-                        jitter = sum(diffs) / len(diffs)
+                        jitter = 0.0
+                        if len(self._recent_pings) >= 2:
+                            diffs = [abs(self._recent_pings[i] - self._recent_pings[i-1])
+                                     for i in range(1, len(self._recent_pings))]
+                            jitter = sum(diffs) / len(diffs)
 
-                    self.data_ready.emit(latency, jitter, True)
-                else:
-                    self.data_ready.emit(0.0, 0.0, False)
+                        self.data_ready.emit(latency, jitter, True)
+                    else:
+                        self.data_ready.emit(0.0, 0.0, False)
 
             except Exception:
                 self.data_ready.emit(0.0, 0.0, False)
@@ -276,10 +246,14 @@ class _ProcessWorker(QThread):
     def __init__(self):
         super().__init__()
         self._running = True
+        self._is_paused = False
         self._proc_io_prev = {}
         self._proc_last_refresh = 0
         self._current_dl = 0.0
         self._current_ul = 0.0
+
+    def set_paused(self, paused: bool):
+        self._is_paused = paused
 
     def set_current_speed(self, dl, ul):
         """Update total network bandwidth so the thread can calculate proportions."""
@@ -291,65 +265,66 @@ class _ProcessWorker(QThread):
         import time
         while self._running:
             try:
-                now = time.time()
-                elapsed = now - self._proc_last_refresh if self._proc_last_refresh else 3.0
-                elapsed = max(elapsed, 0.5)
+                if not self._is_paused:
+                    now = time.time()
+                    elapsed = now - self._proc_last_refresh if self._proc_last_refresh else 3.0
+                    elapsed = max(elapsed, 0.5)
 
-                pid_names = {}
-                for conn in psutil.net_connections(kind="inet"):
-                    if conn.status == "ESTABLISHED" and conn.pid:
-                        if conn.pid in pid_names:
-                            continue
+                    pid_names = {}
+                    for conn in psutil.net_connections(kind="inet"):
+                        if conn.status == "ESTABLISHED" and conn.pid:
+                            if conn.pid in pid_names:
+                                continue
+                            try:
+                                p = psutil.Process(conn.pid)
+                                name = p.name()
+                                if name.lower() not in ("system", "svchost.exe", ""):
+                                    pid_names[conn.pid] = name
+                            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                pass
+
+                    proc_io_deltas = []
+                    new_io_prev = {}
+
+                    for pid, name in pid_names.items():
                         try:
-                            p = psutil.Process(conn.pid)
-                            name = p.name()
-                            if name.lower() not in ("system", "svchost.exe", ""):
-                                pid_names[conn.pid] = name
+                            io = psutil.Process(pid).io_counters()
+                            current_bytes = io.read_bytes + io.write_bytes
+                            new_io_prev[pid] = (io.read_bytes, io.write_bytes, now)
+
+                            if pid in self._proc_io_prev:
+                                prev_r, prev_w, _ = self._proc_io_prev[pid]
+                                delta_bytes = max(0, current_bytes - (prev_r + prev_w))
+                                io_kbps = (delta_bytes / elapsed) / 1024.0
+                            else:
+                                io_kbps = 0.0
+
+                            proc_io_deltas.append((name, io_kbps))
                         except (psutil.NoSuchProcess, psutil.AccessDenied):
                             pass
 
-                proc_io_deltas = []
-                new_io_prev = {}
+                    self._proc_io_prev = new_io_prev
+                    self._proc_last_refresh = now
 
-                for pid, name in pid_names.items():
-                    try:
-                        io = psutil.Process(pid).io_counters()
-                        current_bytes = io.read_bytes + io.write_bytes
-                        new_io_prev[pid] = (io.read_bytes, io.write_bytes, now)
+                    name_io = {}
+                    for name, io_kbps in proc_io_deltas:
+                        name_io[name] = name_io.get(name, 0.0) + io_kbps
 
-                        if pid in self._proc_io_prev:
-                            prev_r, prev_w, _ = self._proc_io_prev[pid]
-                            delta_bytes = max(0, current_bytes - (prev_r + prev_w))
-                            io_kbps = (delta_bytes / elapsed) / 1024.0
+                    total_net_speed = self._current_dl + self._current_ul
+                    total_io = sum(name_io.values())
+
+                    sorted_procs = []
+                    for name, io_kbps in name_io.items():
+                        if total_io > 0 and total_net_speed > 0:
+                            net_speed = (io_kbps / total_io) * total_net_speed
                         else:
-                            io_kbps = 0.0
+                            net_speed = 0.0
+                        sorted_procs.append((name, net_speed))
 
-                        proc_io_deltas.append((name, io_kbps))
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        pass
-
-                self._proc_io_prev = new_io_prev
-                self._proc_last_refresh = now
-
-                name_io = {}
-                for name, io_kbps in proc_io_deltas:
-                    name_io[name] = name_io.get(name, 0.0) + io_kbps
-
-                total_net_speed = self._current_dl + self._current_ul
-                total_io = sum(name_io.values())
-
-                sorted_procs = []
-                for name, io_kbps in name_io.items():
-                    if total_io > 0 and total_net_speed > 0:
-                        net_speed = (io_kbps / total_io) * total_net_speed
-                    else:
-                        net_speed = 0.0
-                    sorted_procs.append((name, net_speed))
-
-                sorted_procs.sort(key=lambda x: x[1], reverse=True)
-                top5 = sorted_procs[:5]
-                
-                self.data_ready.emit(top5)
+                    sorted_procs.sort(key=lambda x: x[1], reverse=True)
+                    top5 = sorted_procs[:5]
+                    
+                    self.data_ready.emit(top5)
             except Exception:
                 pass
 
@@ -564,59 +539,76 @@ class AnalyticsDashboard(QWidget):
         """
         self.adjustSize()
 
-        screen = QApplication.primaryScreen()
+        screen = None
+        if anchor_rect:
+            for s in QApplication.screens():
+                if s.geometry().contains(anchor_rect.center()):
+                    screen = s
+                    break
+        if not screen:
+            screen = QApplication.primaryScreen()
+
         if not screen:
             self.show()
             return
 
-        screen_geo = screen.availableGeometry()
-        taskbar_rect = _get_taskbar_rect()
+        avail_geo = screen.availableGeometry()  # Excludes taskbar
+        full_geo = screen.geometry()            # Full screen including taskbar
 
         panel_w = self.width()
         panel_h = self.height()
 
+        # Detect taskbar edge to decide panel placement direction.
+        # On Windows 10, the widget sits inside the taskbar area which is
+        # outside the available geometry; placing the panel relative to the
+        # anchor alone may push it behind the taskbar.  Instead, anchor the
+        # panel to the edge of the *available* geometry (the usable desktop).
+        from netspeedtray.utils.taskbar_utils import get_taskbar_info as _get_tb
+        from netspeedtray.constants.taskbar import TaskbarEdge
+        _tb = _get_tb()
+        _edge = _tb.get_edge_position() if _tb and _tb.hwnd != 0 else None
+
         if anchor_rect:
             # Center the panel horizontally relative to the anchor_rect
             x = anchor_rect.center().x() - (panel_w // 2)
-            # Ensure it doesn't go off the screen edges
-            x = max(screen_geo.left() + 8, min(x, screen_geo.right() - panel_w - 8))
-            
-            # Position just above the anchor
-            y = anchor_rect.top() - panel_h - 8
-            
-            # If it goes off the top of the screen (e.g. taskbar at the top), place it below
-            if y < screen_geo.top():
-                y = anchor_rect.bottom() + 8
+            # Ensure it doesn't go off the horizontal screen edges
+            x = max(avail_geo.left() + 8, min(x, avail_geo.right() - panel_w - 8))
+
+            if _edge == TaskbarEdge.TOP:
+                # Taskbar at top: place panel just below the available geometry top edge
+                y = avail_geo.top() + 8
+            elif _edge in (TaskbarEdge.LEFT, TaskbarEdge.RIGHT):
+                # Vertical taskbar: place panel above the anchor, clamped to available area
+                y = anchor_rect.top() - panel_h - 8
+                y = max(avail_geo.top() + 8, min(y, avail_geo.bottom() - panel_h - 8))
+            else:
+                # Bottom taskbar (default / most common): place panel so its
+                # bottom edge sits just above the available-geometry bottom
+                # (i.e. just above the taskbar).  This works on both Win10
+                # (where the widget rect is inside the physical taskbar) and
+                # Win11 (where it overlaps the taskbar gap).
+                y = avail_geo.bottom() - panel_h - 8
+
+                # Sanity: if this somehow goes above the screen, fall back
+                if y < avail_geo.top():
+                    y = avail_geo.top() + 8
         else:
             # Fallback: Right-align with a small margin from the right edge
-            x = screen_geo.right() - panel_w - 8
+            x = avail_geo.right() - panel_w - 8
+            # Fallback: bottom of available geometry
+            y = avail_geo.bottom() - panel_h - 8
 
-            if taskbar_rect:
-                # Position just above the taskbar
-                taskbar_top = taskbar_rect[1]
-                dpi = screen.devicePixelRatio()
-                taskbar_top_logical = int(taskbar_top / dpi) if dpi > 1 else taskbar_top
-                y = taskbar_top_logical - panel_h - 8
-            else:
-                # Fallback: bottom of available geometry
-                y = screen_geo.bottom() - panel_h - 8
-
-        # Slide-up animation: start below final position
-        start_rect = QRect(x, y + 30, panel_w, panel_h)
+        # Slide animation: direction depends on taskbar edge
+        if _edge == TaskbarEdge.TOP:
+            # Top taskbar: slide down from above
+            start_rect = QRect(x, y - 30, panel_w, panel_h)
+        else:
+            # Bottom/default: slide up from below
+            start_rect = QRect(x, y + 30, panel_w, panel_h)
         end_rect = QRect(x, y, panel_w, panel_h)
 
         self.setGeometry(start_rect)
         self.show()
-
-        # Apply Acrylic backdrop on first show (needs valid HWND)
-        # Disabled: DWM Acrylic renders a fallback background on transparent pixels, 
-        # causing a grey rectangular bounding box (#545454) outside the rounded corners.
-        # if not self._acrylic_applied:
-        #     try:
-        #         hwnd = int(self.winId())
-        #         self._acrylic_applied = _apply_acrylic_backdrop(hwnd)
-        #     except Exception:
-        #         pass
 
         self._slide_anim.setStartValue(start_rect)
         self._slide_anim.setEndValue(end_rect)
@@ -625,6 +617,10 @@ class AnalyticsDashboard(QWidget):
         # Encourage window to take focus
         self.raise_()
         self.activateWindow()
+
+        # Resume background workers
+        if hasattr(self, '_ping_worker'): self._ping_worker.set_paused(False)
+        if hasattr(self, '_proc_worker'): self._proc_worker.set_paused(False)
 
     def hide_animated(self):
         """Slide-down and hide."""
@@ -649,6 +645,9 @@ class AnalyticsDashboard(QWidget):
         """Called when slide-down animation completes."""
         self.hide()
         self._is_hiding = False
+        # Pause background workers to save CPU and RAM
+        if hasattr(self, '_ping_worker'): self._ping_worker.set_paused(True)
+        if hasattr(self, '_proc_worker'): self._proc_worker.set_paused(True)
 
     # ── Events ────────────────────────────────────────────────────────────
 
@@ -657,9 +656,9 @@ class AnalyticsDashboard(QWidget):
         Auto-hide when the window loses activation (user clicks elsewhere).
         """
         if event.type() == QEvent.Type.ActivationChange:
-            # Extended 2-second grace period for Win10 Tool windows that may
+            # Extended 3-second grace period for Win10 Tool windows that may
             # not gain activation as quickly as Win11.
-            if not self.isActiveWindow() and self.isVisible() and (time.time() - self._show_time > 2.0):
+            if not self.isActiveWindow() and self.isVisible() and (time.time() - self._show_time > 3.0):
                 self.hide_animated()
         super().changeEvent(event)
 
@@ -686,12 +685,16 @@ class AnalyticsDashboard(QWidget):
         the OS-level foreground window, so the primary check now uses Qt's
         ``QApplication.activeWindow()`` which correctly tracks Tool-window
         activation.
+
+        On Win10, the taskbar shell (Shell_TrayWnd) frequently steals foreground
+        when the widget is docked inside the taskbar area. We treat the taskbar
+        shell as a "friendly" foreground window and keep the dashboard visible.
         """
         if not self.isVisible() or self._is_hiding:
             return
-        # Extended 2-second grace period for Win10 where Tool windows take
+        # Extended 3-second grace period for Win10 where Tool windows take
         # longer (or never) receive foreground status.
-        if time.time() - self._show_time < 2.0:
+        if time.time() - self._show_time < 3.0:
             return
         try:
             # Primary check: Qt's own activation tracking (works for Tool windows)
@@ -705,7 +708,19 @@ class AnalyticsDashboard(QWidget):
             if fg_hwnd == my_hwnd:
                 return  # Dashboard is the OS foreground window — keep visible
 
-            # Neither check passed — user has clicked elsewhere, hide.
+            # Tertiary check: If the foreground window is the taskbar shell
+            # (Shell_TrayWnd / Shell_SecondaryTrayWnd), the user hasn't actually
+            # clicked away — the shell just reclaimed focus because our widget
+            # sits inside the taskbar. Keep the dashboard visible.
+            try:
+                import win32gui
+                fg_class = win32gui.GetClassName(fg_hwnd)
+                if fg_class in ("Shell_TrayWnd", "Shell_SecondaryTrayWnd"):
+                    return  # Taskbar shell has focus — this is expected, keep visible
+            except Exception:
+                pass
+
+            # None of the checks passed — user has clicked elsewhere, hide.
             self.hide_animated()
         except Exception:
             pass
